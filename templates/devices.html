@@ -1,1 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>nuGateway | Cihazlar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="/static/styles.css" rel="stylesheet">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
 
+    <nav class="bg-gray-800 shadow p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">nuGateway - Cihazlar</h1>
+        <div class="space-x-4">
+            <a href="/dashboard" class="hover:underline">Dashboard</a>
+            <a href="/devices" class="underline">Cihazlar</a>
+            <a href="/settings" class="hover:underline">Ayarlar</a>
+        </div>
+    </nav>
+
+    <main class="p-6">
+        <h2 class="text-2xl font-semibold mb-4">Bağlı Sensörler</h2>
+        <div id="device-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- JavaScript ile doldurulacak -->
+        </div>
+    </main>
+
+    <script src="/static/main.js"></script>
+    <script>
+        async function fetchSensors() {
+            const res = await fetch('/sensors');
+            const sensors = await res.json();
+            const grid = document.getElementById('device-grid');
+            grid.innerHTML = '';
+            sensors.forEach(sensor => {
+                const card = document.createElement('div');
+                card.className = 'bg-gray-800 p-4 rounded-xl shadow hover:shadow-lg transition';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="text-xl font-bold">${sensor.name}</div>
+                        <i data-feather="cpu"></i>
+                    </div>
+                    <div class="text-3xl">${sensor.value} <span class="text-lg">${sensor.unit || ''}</span></div>
+                `;
+                grid.appendChild(card);
+            });
+            feather.replace();
+        }
+
+        fetchSensors();
+        setInterval(fetchSensors, 10000); // 10 saniyede bir yenile
+    </script>
+</body>
+</html>

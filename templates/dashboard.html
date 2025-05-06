@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<h1 class="text-xl font-bold" id="gateway-title">nuGateway</h1>
+<script>
+fetch('/get-settings')
+    .then(res => res.json())
+    .then(data => {
+        const titleEl = document.getElementById('gateway-title');
+        if (titleEl && data.gateway_name) {
+            titleEl.textContent = data.gateway_name + ' - Dashboard';
+        }
+    });
+</script>
+<body>
+    <header>
+        <h1>nuGateway Dashboard</h1>
+        <nav>
+            <a href="/">Ana Sayfa</a>
+            <a href="/devices">Cihazlar</a>
+            <a href="/settings">Ayarlar</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="cards-container">
+            <h2>Sensor Verileri</h2>
+            <div id="sensor-data" class="grid-container"></div>
+        </section>
+
+        <section class="cards-container">
+            <h2>Röle Kontrol</h2>
+            <div id="relay-controls" class="grid-container"></div>
+        </section>
+    </main>
+
+    <footer>
+        <p>© 2025 nuGateway | Powered by Raspberry Pi 4</p>
+    </footer>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
