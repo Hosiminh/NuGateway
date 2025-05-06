@@ -1,0 +1,6 @@
+{
+  "gateway_name": "nuGateway",
+  "serial_port": "/dev/ttyUSB0",
+  "baudrate": 9600,
+  "interval": 10
+}
