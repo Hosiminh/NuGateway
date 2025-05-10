@@ -1,42 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
-<h1 class="text-xl font-bold" id="gateway-title">nuGateway</h1>
-<script>
-fetch('/get-settings')
-    .then(res => res.json())
-    .then(data => {
-        const titleEl = document.getElementById('gateway-title');
-        if (titleEl && data.gateway_name) {
-            titleEl.textContent = data.gateway_name + ' - Dashboard';
-        }
-    });
-</script>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nuGateway Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
 <body>
-    <header>
-        <h1>nuGateway Dashboard</h1>
-        <nav>
-            <a href="/">Ana Sayfa</a>
-            <a href="/devices">Cihazlar</a>
-            <a href="/settings">Ayarlar</a>
-        </nav>
-    </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
+        <h2>nuGateway</h2>
+      </div>
+      <nav class="nav">
+        <ul>
+          <li class="active">Dashboard</li>
+          <li>Ayarlar</li>
+          <li>Röle Kontrol</li>
+          <li>Destek</li>
+        </ul>
+      </nav>
+    </aside>
 
-    <main>
-        <section class="cards-container">
-            <h2>Sensor Verileri</h2>
-            <div id="sensor-data" class="grid-container"></div>
-        </section>
+    <div class="main">
+      <header class="main-header">
+        <h1>Akıllı Sensör Dashboard</h1>
+        <div class="user-info">
+          <span>John Doe</span>
+          <img src="/static/user-icon.png" class="user-avatar" />
+        </div>
+      </header>
 
-        <section class="cards-container">
-            <h2>Röle Kontrol</h2>
-            <div id="relay-controls" class="grid-container"></div>
-        </section>
-    </main>
+      <section class="cards" id="sensor-cards">
+        <!-- Sensör verileri buraya JS ile eklenecek -->
+      </section>
 
-    <footer>
-        <p>© 2025 nuGateway | Powered by Raspberry Pi 4</p>
-    </footer>
+      <section class="charts">
+        <div class="chart-box">
+          <h3>Sıcaklık Zaman Grafiği</h3>
+          <canvas id="tempChart"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>Nem Dağılımı</h3>
+          <canvas id="humidityDoughnut"></canvas>
+        </div>
+      </section>
 
-    <script src="/static/js/main.js"></script>
+      <footer class="footer">
+        <p>&copy; 2024 Nu Teknoloji A.Ş. | Tüm hakları saklıdır.</p>
+      </footer>
+    </div>
+  </div>
+
+  <script src="/static/main.js"></script>
 </body>
 </html>
