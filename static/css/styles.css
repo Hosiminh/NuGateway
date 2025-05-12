@@ -1,4 +1,4 @@
-/* Temel stiller ve kurumsal renk paleti */
+/* Temel renkler ve kurumsal tema */
 :root {
   --primary-color: #004080;
   --accent-color: #00ADEF;
@@ -83,4 +83,130 @@ body {
   font-weight: 700;
   box-shadow: var(--menu-active-shadow);
   transform: translateY(-1px);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color);
+}
+
+.main-header {
+  background-color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 1rem 1.2rem;
+  color: var(--text-color);
+  transition: transform 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+.card h4 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary-color);
+}
+
+.card p, .card .value {
+  margin: 0.3rem 0;
+  font-size: 0.95rem;
+}
+
+.chart-box {
+  flex: 1;
+  min-width: 300px;
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.charts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  padding: 1rem 2rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form label {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.form input {
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: var(--border-radius);
+  background-color: #fff;
+  color: #000;
+  font-size: 1rem;
+}
+
+.form button {
+  padding: 0.6rem 1rem;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.form button:hover {
+  background-color: var(--hover-color);
+}
+
+.success-msg {
+  color: green;
+  font-size: 0.9rem;
+}
+
+.footer {
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: #888;
+  border-top: 1px solid #e0e0e0;
+  background-color: white;
 }
