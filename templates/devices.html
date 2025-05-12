@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nu Gateway Ayarlar</title> 
-  <link rel="stylesheet" href="/static/css/styles.css" /> 
+  <title>nuGateway Cihazlar</title>
+  <link rel="stylesheet" href="/static/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -17,41 +17,23 @@
       <nav class="nav">
         <ul>
           <li><a href="/dashboard" class="nav-link">Dashboard</a></li>
-          <li><a href="/devices" class="nav-link">Cihazlar</a></li>
-          <li><a href="/settings" class="nav-link active">Ayarlar</a></li>
+          <li><a href="/devices" class="nav-link active">Cihazlar</a></li>
+          <li><a href="/settings" class="nav-link">Ayarlar</a></li>
         </ul>
       </nav>
     </aside>
 
     <div class="main">
       <header class="main-header">
-        <h1>Gateway Ayarları</h1>
+        <h1>Ağa Bağlı Cihazlar</h1>
         <div class="user-info">
           <span>Cafer DOGANAY</span>
           <img src="/static/user-icon.png" class="user-avatar" />
         </div>
       </header>
 
-      <main class="cards">
-        <div class="card" style="max-width: 600px;">
-          <h4>Yapılandırma Formu</h4>
-          <form id="settingsForm" class="form">
-            <label>Gateway Adı</label>
-            <input type="text" name="gateway_name" required />
-
-            <label>Seri Port</label>
-            <input type="text" name="serial_port" placeholder="/dev/ttyUSB0" required />
-
-            <label>Baudrate</label>
-            <input type="number" name="baudrate" value="9600" required />
-
-            <label>Veri Güncelleme Aralığı (saniye)</label>
-            <input type="number" name="interval" value="10" required />
-
-            <button type="submit">Kaydet</button>
-            <p id="saveMsg" class="success-msg" style="display: none;">✅ Ayarlar kaydedildi!</p>
-          </form>
-        </div>
+      <main class="cards" id="device-list">
+        <!-- Cihaz kartları burada yüklenir -->
       </main>
 
       <footer class="footer">
@@ -61,37 +43,25 @@
   </div>
 
   <script>
-    async function loadSettings() {
-      const res = await fetch('/get-settings');
-      const data = await res.json();
-      for (const key in data) {
-        const field = document.querySelector(`[name="${key}"]`);
-        if (field) field.value = data[key];
-      }
-    }
+    const devices = [
+      { id: 1, name: "LDR Sensör", status: "Aktif", type: "Modbus RTU", address: 1 },
+      { id: 2, name: "Çevre Sensörü", status: "Aktif", type: "Modbus RTU", address: 123 },
+      { id: 3, name: "PIR Sensör", status: "Aktif", type: "Modbus RTU", address: 2 },
+      { id: 4, name: "MPPT Şarj Cihazı", status: "Aktif", type: "Modbus RTU", address: 3 }
+    ];
 
-    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const data = Object.fromEntries(formData.entries());
-      await fetch('/save-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      document.getElementById('saveMsg').style.display = 'block';
-      setTimeout(() => document.getElementById('saveMsg').style.display = 'none', 3000);
+    const container = document.getElementById("device-list");
+    devices.forEach(dev => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <h4>${dev.name}</h4>
+        <p><strong>Tip:</strong> ${dev.type}</p>
+        <p><strong>Adres:</strong> ${dev.address}</p>
+        <p><strong>Durum:</strong> <span style="color: green; font-weight: bold;">${dev.status}</span></p>
+      `;
+      container.appendChild(card);
     });
-
-    // Nav link aktifliğini kontrol et
-    const pathname = window.location.pathname;
-    document.querySelectorAll('.nav-link').forEach(link => {
-      if (link.getAttribute('href') === pathname) {
-        link.classList.add('active');
-      }
-    });
-
-    loadSettings();
   </script>
 </body>
 </html>
