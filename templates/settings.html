@@ -1,75 +1,89 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
-    <meta charset="UTF-8" />
-    <title>nuGateway | Ayarlar</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link href="/static/styles.css" rel="stylesheet">
-    <script src="https://unpkg.com/feather-icons"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nuGateway Ayarlar</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
+        <h2>nuGateway</h2>
+      </div>
+      <nav class="nav">
+        <ul>
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/devices">Cihazlar</a></li>
+          <li class="active"><a href="/settings">Ayarlar</a></li>
+        </ul>
+      </nav>
+    </aside>
 
-    <nav class="bg-gray-800 shadow p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">nuGateway - Ayarlar</h1>
-        <div class="space-x-4">
-            <a href="/dashboard" class="hover:underline">Dashboard</a>
-            <a href="/devices" class="hover:underline">Cihazlar</a>
-            <a href="/settings" class="underline">Ayarlar</a>
+    <div class="main">
+      <header class="main-header">
+        <h1>Gateway Ayarları</h1>
+        <div class="user-info">
+          <span>Cafer DOGANAY</span>
+          <img src="/static/user-icon.png" class="user-avatar" />
         </div>
-    </nav>
+      </header>
 
-    <main class="p-6">
-        <h2 class="text-2xl font-semibold mb-4">Gateway Yapılandırması</h2>
-        <form id="settingsForm" class="space-y-4 bg-gray-800 p-6 rounded-xl shadow-lg max-w-xl">
-            <div>
-                <label class="block text-sm font-medium">Gateway Adı</label>
-                <input type="text" name="gateway_name" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border border-gray-600" required>
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Seri Port</label>
-                <input type="text" name="serial_port" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border border-gray-600" placeholder="/dev/ttyUSB0" required>
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Baudrate</label>
-                <input type="number" name="baudrate" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border border-gray-600" value="9600">
-            </div>
-            <div>
-                <label class="block text-sm font-medium">Veri Güncelleme Aralığı (saniye)</label>
-                <input type="number" name="interval" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border border-gray-600" value="10">
-            </div>
-            <div>
-                <button type="submit" class="bg-green-600 px-4 py-2 rounded hover:bg-green-700">Kaydet</button>
-                <span id="saveMsg" class="ml-4 text-sm text-green-400 hidden">Ayarlar kaydedildi!</span>
-            </div>
-        </form>
-    </main>
+      <main class="cards">
+        <div class="card" style="max-width: 600px;">
+          <h4>Yapılandırma Formu</h4>
+          <form id="settingsForm" class="form">
+            <label>Gateway Adı</label>
+            <input type="text" name="gateway_name" required />
 
-    <script src="/static/main.js"></script>
-    <script>
-        async function loadSettings() {
-            const res = await fetch('/get-settings');
-            const data = await res.json();
-            for (const key in data) {
-                const field = document.querySelector(`[name="${key}"]`);
-                if (field) field.value = data[key];
-            }
-        }
+            <label>Seri Port</label>
+            <input type="text" name="serial_port" placeholder="/dev/ttyUSB0" required />
 
-        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            await fetch('/save-settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            document.getElementById('saveMsg').classList.remove('hidden');
-            setTimeout(() => document.getElementById('saveMsg').classList.add('hidden'), 3000);
-        });
+            <label>Baudrate</label>
+            <input type="number" name="baudrate" value="9600" required />
 
-        loadSettings();
-        feather.replace();
-    </script>
+            <label>Veri Güncelleme Aralığı (saniye)</label>
+            <input type="number" name="interval" value="10" required />
+
+            <button type="submit">Kaydet</button>
+            <p id="saveMsg" class="success-msg" style="display: none;">✅ Ayarlar kaydedildi!</p>
+          </form>
+        </div>
+      </main>
+
+      <footer class="footer">
+        <p>&copy; 2024 Nu Teknoloji A.Ş. | Tüm hakları saklıdır.</p>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    async function loadSettings() {
+      const res = await fetch('/get-settings');
+      const data = await res.json();
+      for (const key in data) {
+        const field = document.querySelector(`[name="${key}"]`);
+        if (field) field.value = data[key];
+      }
+    }
+
+    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      await fetch('/save-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      document.getElementById('saveMsg').style.display = 'block';
+      setTimeout(() => document.getElementById('saveMsg').style.display = 'none', 3000);
+    });
+
+    loadSettings();
+  </script>
 </body>
 </html>
