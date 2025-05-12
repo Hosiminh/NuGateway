@@ -1,54 +1,68 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
-    <meta charset="UTF-8" />
-    <title>nuGateway | Cihazlar</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link href="/static/styles.css" rel="stylesheet">
-    <script src="https://unpkg.com/feather-icons"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nuGateway Cihazlar</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
+        <h2>nuGateway</h2>
+      </div>
+      <nav class="nav">
+        <ul>
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li class="active"><a href="/devices">Cihazlar</a></li>
+          <li><a href="/settings">Ayarlar</a></li>
+        </ul>
+      </nav>
+    </aside>
 
-    <nav class="bg-gray-800 shadow p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">nuGateway - Cihazlar</h1>
-        <div class="space-x-4">
-            <a href="/dashboard" class="hover:underline">Dashboard</a>
-            <a href="/devices" class="underline">Cihazlar</a>
-            <a href="/settings" class="hover:underline">Ayarlar</a>
+    <div class="main">
+      <header class="main-header">
+        <h1>Ağa Bağlı Cihazlar</h1>
+        <div class="user-info">
+          <span>Cafer DOGANAY</span>
+          <img src="/static/user-icon.png" class="user-avatar" />
         </div>
-    </nav>
+      </header>
 
-    <main class="p-6">
-        <h2 class="text-2xl font-semibold mb-4">Bağlı Sensörler</h2>
-        <div id="device-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <!-- JavaScript ile doldurulacak -->
-        </div>
-    </main>
+      <main class="cards" id="device-list">
+        <!-- Cihazlar buraya eklenecek -->
+      </main>
 
-    <script src="/static/main.js"></script>
-    <script>
-        async function fetchSensors() {
-            const res = await fetch('/sensors');
-            const sensors = await res.json();
-            const grid = document.getElementById('device-grid');
-            grid.innerHTML = '';
-            sensors.forEach(sensor => {
-                const card = document.createElement('div');
-                card.className = 'bg-gray-800 p-4 rounded-xl shadow hover:shadow-lg transition';
-                card.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <div class="text-xl font-bold">${sensor.name}</div>
-                        <i data-feather="cpu"></i>
-                    </div>
-                    <div class="text-3xl">${sensor.value} <span class="text-lg">${sensor.unit || ''}</span></div>
-                `;
-                grid.appendChild(card);
-            });
-            feather.replace();
-        }
+      <footer class="footer">
+        <p>&copy; 2024 Nu Teknoloji A.Ş. | Tüm hakları saklıdır.</p>
+      </footer>
+    </div>
+  </div>
 
-        fetchSensors();
-        setInterval(fetchSensors, 10000); // 10 saniyede bir yenile
-    </script>
+  <script>
+    // Dummy cihaz verisi - gerekirse API'den alınabilir
+    const devices = [
+      { id: 1, name: "LDR Sensör", status: "Aktif", type: "Modbus RTU", address: 1 },
+      { id: 2, name: "Çevre Sensörü", status: "Aktif", type: "Modbus RTU", address: 123 },
+      { id: 3, name: "PIR Sensör", status: "Aktif", type: "Modbus RTU", address: 2 },
+      { id: 4, name: "MPPT Şarj Cihazı", status: "Aktif", type: "Modbus RTU", address: 3 }
+    ];
+
+    const container = document.getElementById("device-list");
+    devices.forEach(dev => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <h4>${dev.name}</h4>
+        <p>Tip: ${dev.type}</p>
+        <p>Adres: ${dev.address}</p>
+        <p>Durum: <strong style="color: green;">${dev.status}</strong></p>
+      `;
+      container.appendChild(card);
+    });
+  </script>
 </body>
 </html>
