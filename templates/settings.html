@@ -1,18 +1,60 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nu Gateway Ayarlar</title> 
-  <link rel="stylesheet" href="/static/styles.css" /> 
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nuGateway | Ayarlar</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    .settings-form {
+      background: #1e293b;
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 600px;
+      margin: 2rem auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .settings-form h2 {
+      margin-bottom: 1rem;
+    }
+    .settings-form label {
+      display: block;
+      margin: 0.5rem 0 0.25rem;
+      font-weight: 600;
+    }
+    .settings-form input,
+    .settings-form select {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .settings-form button {
+      background: #3b82f6;
+      padding: 0.5rem 1.25rem;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .settings-form .success-msg {
+      color: #10b981;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
     <aside class="sidebar">
       <div class="sidebar-header">
         <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
-        <h2>nuGateway</h2>
+        <h2>Nu Gateway</h2>
       </div>
       <nav class="nav">
         <ul>
@@ -25,78 +67,48 @@
 
     <div class="main">
       <header class="main-header">
-        <h1>Gateway Yapılandırması</h1>
+        <h1>Ayarlar</h1>
         <div class="user-info">
           <span>Cafer DOGANAY</span>
           <img src="/static/user-icon.png" class="user-avatar" />
         </div>
       </header>
 
-      <main class="cards">
-        <div class="card" style="max-width: 700px;">
-          <h4>Genel Bilgiler</h4>
-          <form id="settingsForm" class="form">
-            <label>Cihaz Adı</label>
-            <input type="text" name="gateway_name" required />
+      <main class="content">
+        <form id="settingsForm" class="settings-form">
+          <h2>Gateway Yapılandırması</h2>
 
-            <label>MAC Adresi</label>
-            <input type="text" name="mac_address" readonly />
+          <label for="gateway_name">Gateway Adı</label>
+          <input type="text" name="gateway_name" required>
 
-            <label>IP Adresi</label>
-            <input type="text" name="ip_address" readonly />
+          <label for="serial_port">Seri Port</label>
+          <input type="text" name="serial_port" placeholder="/dev/ttyUSB0" required>
 
-            <label>Konum</label>
-            <select name="location">
-              <option value="">Seçiniz</option>
-              <option>Ankara</option>
-              <option>İstanbul</option>
-              <option>İzmir</option>
-              <option>Bursa</option>
-              <option>Adana</option>
-            </select>
+          <label for="baudrate">Baudrate</label>
+          <input type="number" name="baudrate" value="9600" required>
 
-            <h4>Modbus / Seri Ayarlar</h4>
-            <label>Seri Port</label>
-            <select name="serial_port" id="serial_port">
-              <option value="">Portlar yükleniyor...</option>
-            </select>
+          <label for="interval">Veri Güncelleme Aralığı (saniye)</label>
+          <input type="number" name="interval" value="10" required>
 
-            <label>Baudrate</label>
-            <select name="baudrate">
-              <option>9600</option>
-              <option>19200</option>
-              <option>38400</option>
-              <option>57600</option>
-              <option>115200</option>
-            </select>
+          <label for="location">Cihaz Konumu</label>
+          <input type="text" name="location" placeholder="İstanbul / TR">
 
-            <label>Data Bits</label>
-            <select name="data_bits">
-              <option value="8">8</option>
-              <option value="7">7</option>
-            </select>
+          <label for="parity">Parite</label>
+          <select name="parity">
+            <option value="N">None</option>
+            <option value="E">Even</option>
+            <option value="O">Odd</option>
+          </select>
 
-            <label>Parity</label>
-            <select name="parity">
-              <option value="N">None</option>
-              <option value="E">Even</option>
-              <option value="O">Odd</option>
-            </select>
+          <label for="data_bits">Veri Bit Sayısı</label>
+          <input type="number" name="data_bits" value="8">
 
-            <label>Stop Bits</label>
-            <select name="stop_bits">
-              <option value="1">1</option>
-              <option value="2">2</option>
-            </select>
+          <label for="stop_bits">Dur Bit Sayısı</label>
+          <input type="number" name="stop_bits" value="1">
 
-            <h4>Veri Güncelleme</h4>
-            <label>Veri Güncelleme Aralığı (saniye)</label>
-            <input type="number" name="interval" value="10" required />
-
-            <button type="submit">Kaydet</button>
-            <p id="saveMsg" class="success-msg" style="display: none;">✅ Ayarlar kaydedildi!</p>
-          </form>
-        </div>
+          <button type="submit">Kaydet</button>
+          <p id="saveMsg" class="success-msg" style="display: none;">✅ Ayarlar kaydedildi!</p>
+        </form>
       </main>
 
       <footer class="footer">
@@ -115,26 +127,6 @@
       }
     }
 
-    async function fetchNetworkInfo() {
-      const res = await fetch('/network-info');
-      const data = await res.json();
-      if (data.mac) document.querySelector('[name="mac_address"]').value = data.mac;
-      if (data.ip) document.querySelector('[name="ip_address"]').value = data.ip;
-    }
-
-    async function fetchSerialPorts() {
-      const res = await fetch('/serial-ports');
-      const data = await res.json();
-      const portSelect = document.querySelector('[name="serial_port"]');
-      portSelect.innerHTML = '';
-      data.ports.forEach(port => {
-        const option = document.createElement('option');
-        option.value = port;
-        option.textContent = port;
-        portSelect.appendChild(option);
-      });
-    }
-
     document.getElementById('settingsForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
@@ -149,8 +141,6 @@
     });
 
     loadSettings();
-    fetchNetworkInfo();
-    fetchSerialPorts();
   </script>
 </body>
 </html>
