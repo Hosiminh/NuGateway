@@ -8,7 +8,7 @@ SENSOR_FILE = "sensors.json"
 
 
 def load_settings():
-    with open("gateway_settings.json") as f:
+    with open("settings.json") as f:
         return json.load(f)
 
 
@@ -49,14 +49,14 @@ def estimate_weather(temp, humidity, lux):
 
 def read_sensors():
     settings = load_settings()
-    port = settings.get("serial_port", "/dev/ttyUSB0")
+    port = settings.get("serial_port", "/tmp/ttySIM1")
     baudrate = int(settings.get("baudrate", 9600))
 
     client = ModbusSerialClient(
         method="rtu",
         port=port,
         baudrate=baudrate,
-        timeout=1,
+        timeout=2,
         stopbits=int(settings.get("stop_bits", 1)),
         bytesize=int(settings.get("data_bits", 8)),
         parity=settings.get("parity", "N")
@@ -70,7 +70,7 @@ def read_sensors():
 
     # --- LDR ---
     try:
-        r = client.read_holding_registers(address=0x0000, count=2, unit=1)
+        r = client.read_holding_registers(address=0x0000, count=2, slave=1)
         lux = (r.registers[0] << 16) | r.registers[1]
         result["ldr_lux"] = lux
         result["is_dark"] = lux < 20000
@@ -80,12 +80,12 @@ def read_sensors():
 
     # --- ENVIRONMENTAL SENSOR ---
     try:
-        co2 = read_float32_ieee754(client.read_holding_registers(0x0008, 2, unit=123).registers)
-        temp = read_float32_ieee754(client.read_holding_registers(0x000E, 2, unit=123).registers)
-        hum = read_float32_ieee754(client.read_holding_registers(0x0010, 2, unit=123).registers)
-        pm25 = read_float32_ieee754(client.read_holding_registers(0x000A, 2, unit=123).registers)
-        pm10 = read_float32_ieee754(client.read_holding_registers(0x000C, 2, unit=123).registers)
-        illumination = read_float32_ieee754(client.read_holding_registers(0x0012, 2, unit=123).registers)
+        co2 = read_float32_ieee754(client.read_holding_registers(0x0008, 2, slave=123).registers)
+        temp = read_float32_ieee754(client.read_holding_registers(0x000E, 2, slave=123).registers)
+        hum = read_float32_ieee754(client.read_holding_registers(0x0010, 2, slave=123).registers)
+        pm25 = read_float32_ieee754(client.read_holding_registers(0x000A, 2, slave=123).registers)
+        pm10 = read_float32_ieee754(client.read_holding_registers(0x000C, 2, slave=123).registers)
+        illumination = read_float32_ieee754(client.read_holding_registers(0x0012, 2, slave=123).registers)
 
         result["co2"] = round(co2, 2)
         result["temperature"] = round(temp, 2)
@@ -105,8 +105,8 @@ def read_sensors():
 
     # --- MPPT ---
     try:
-        volt = client.read_input_registers(0x3000, 1, unit=3).registers[0] / 100.0
-        curr = client.read_input_registers(0x3001, 1, unit=3).registers[0] / 100.0
+        volt = client.read_input_registers(0x3000, 1, slave=3).registers[0] / 100.0
+        curr = client.read_input_registers(0x3001, 1, slave=3).registers[0] / 100.0
         result["pv_voltage"] = volt
         result["pv_current"] = curr
         result["pv_power"] = round(volt * curr, 2)
@@ -116,7 +116,7 @@ def read_sensors():
 
     # --- PIR ---
     try:
-        pir_value = client.read_holding_registers(0x0006, 1, unit=2).registers[0]
+        pir_value = client.read_holding_registers(0x0006, 1, slave=2).registers[0]
         result["motion_detected"] = pir_value == 1
         result["display_should_be_on"] = pir_value == 1
     except Exception as e:
@@ -124,16 +124,16 @@ def read_sensors():
 
     # --- BMS ---
     try:
-        bv = client.read_input_registers(0x3004, 1, unit=4).registers[0] / 100.0
-        bc = client.read_input_registers(0x3005, 1, unit=4).registers[0] / 100.0
+        bv = client.read_input_registers(0x3004, 1, slave=4).registers[0] / 100.0
+        bc = client.read_input_registers(0x3005, 1, slave=4).registers[0] / 100.0
         result["battery_voltage"] = bv
         result["battery_current"] = bc
         result["battery_power"] = round(bv * bc, 2)
-        result["battery_soc"] = client.read_input_registers(0x3020, 1, unit=4).registers[0]
-        result["battery_soh"] = client.read_input_registers(0x3021, 1, unit=4).registers[0]
-        result["battery_temp"] = client.read_input_registers(0x3022, 1, unit=4).registers[0] / 10.0
-        result["discharge_time"] = client.read_input_registers(0x3023, 1, unit=4).registers[0]
-        result["charge_time"] = client.read_input_registers(0x3024, 1, unit=4).registers[0]
+        result["battery_soc"] = client.read_input_registers(0x3020, 1, slave=4).registers[0]
+        result["battery_soh"] = client.read_input_registers(0x3021, 1, slave=4).registers[0]
+        result["battery_temp"] = client.read_input_registers(0x3022, 1, slave=4).registers[0] / 10.0
+        result["discharge_time"] = client.read_input_registers(0x3023, 1, slave=4).registers[0]
+        result["charge_time"] = client.read_input_registers(0x3024, 1, slave=4).registers[0]
         result["bms_low_power_mode"] = result["battery_soc"] < 30
     except Exception as e:
         print("BMS:", e)
