@@ -1,43 +1,26 @@
 {
-  "timestamp": "2025-05-06T11:00:00Z",
-  "ldr": {
-    "lux": 3245
-  },
-  "environment": {
-    "methane": 4.5,
-    "oxygen": 20.9,
-    "hydrogen_sulfide": 3.1,
-    "ammonia": 1.2,
-    "carbon_dioxide": 450,
-    "pm2_5": 35,
-    "pm10": 48,
-    "temperature": 26.4,
-    "humidity": 51.7,
-    "illumination": 18000
-  },
-  "pir": {
-    "infrared": true,
-    "radar": false
-  },
-  "mppt": {
-    "battery_voltage": 12.6,
-    "battery_current": 4.2,
-    "pv_voltage": 18.3,
-    "pv_current": 5.1,
-    "load_voltage": 12.5,
-    "load_current": 3.8,
-    "charging_power": 61.5,
-    "battery_type": "Li-Ion",
-    "protection_low_voltage": 10.5,
-    "recovery_voltage": 11.1,
-    "charging_target_voltage": 12.9,
-    "real_time": {
-      "second": 34,
-      "minute": 12,
-      "hour": 11,
-      "day": 6,
-      "month": 5,
-      "year": 2025
-    }
-  }
+  "ldr_lux": 41416,
+  "is_dark": false,
+  "co2": 926.73,
+  "temperature": 51.27,
+  "humidity": 58.54,
+  "pm2_5": 0.0,
+  "pm10": 16.29,
+  "illumination": 26.55,
+  "air_quality": "M\u00fckemmel",
+  "air_quality_score": 0,
+  "weather_status": "Karars\u0131z hava ko\u015fullar\u0131",
+  "pv_voltage": 17.75,
+  "pv_current": 7.7,
+  "pv_power": 136.68,
+  "mppt_status": "Charging",
+  "battery_voltage": 0.0,
+  "battery_current": 0.0,
+  "battery_power": 0.0,
+  "battery_soc": 0,
+  "battery_soh": 0,
+  "battery_temp": 5.6,
+  "discharge_time": 87,
+  "charge_time": 364,
+  "bms_low_power_mode": true
 }
