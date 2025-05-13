@@ -1,18 +1,69 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nu Gateway Ayarlar</title> 
-  <link rel="stylesheet" href="/static/css/styles.css" /> 
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nuGateway | Ayarlar</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f1f5f9;
+    }
+    .settings-columns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+    .settings-section {
+      background-color: #ffffff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .settings-section h4 {
+      font-size: 1.1rem;
+      color: #0f172a;
+      margin-bottom: 1rem;
+    }
+    .settings-section label {
+      display: block;
+      font-weight: 500;
+      margin-top: 0.75rem;
+      margin-bottom: 0.25rem;
+    }
+    .settings-section input,
+    .settings-section select {
+      width: 100%;
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .settings-section button {
+      background: #3b82f6;
+      color: white;
+      padding: 0.5rem 1.25rem;
+      margin-top: 1rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .settings-section .success-msg {
+      color: #10b981;
+      margin-top: 0.5rem;
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
     <aside class="sidebar">
       <div class="sidebar-header">
         <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
-        <h2>nuGateway</h2>
+        <h2>Nu Gateway</h2>
       </div>
       <nav class="nav">
         <ul>
@@ -25,77 +76,79 @@
 
     <div class="main">
       <header class="main-header">
-        <h1>Gateway Yapılandırması</h1>
+        <h1>Gateway Yapılandırma Paneli</h1>
         <div class="user-info">
           <span>Cafer DOGANAY</span>
           <img src="/static/user-icon.png" class="user-avatar" />
         </div>
       </header>
 
-      <main class="cards">
-        <div class="card" style="max-width: 700px;">
+      <main class="settings-columns">
+        <form id="settingsForm" class="settings-section">
           <h4>Genel Bilgiler</h4>
-          <form id="settingsForm" class="form">
-            <label>Cihaz Adı</label>
-            <input type="text" name="gateway_name" required />
+          <label>Cihaz Adı</label>
+          <input type="text" name="gateway_name" required />
 
-            <label>MAC Adresi</label>
-            <input type="text" name="mac_address" readonly />
+          <label>MAC Adresi</label>
+          <input type="text" name="mac_address" readonly />
 
-            <label>IP Adresi</label>
-            <input type="text" name="ip_address" readonly />
+          <label>IP Adresi</label>
+          <input type="text" name="ip_address" readonly />
 
-            <label>Konum</label>
-            <select name="location">
-              <option value="">Seçiniz</option>
-              <option>Ankara</option>
-              <option>İstanbul</option>
-              <option>İzmir</option>
-              <option>Bursa</option>
-              <option>Adana</option>
-            </select>
+          <label>Konum</label>
+          <select name="location">
+            <option value="">Seçiniz</option>
+            <option>Ankara</option>
+            <option>İstanbul</option>
+            <option>İzmir</option>
+            <option>Bursa</option>
+            <option>Adana</option>
+          </select>
+        </form>
 
-            <h4>Modbus / Seri Ayarlar</h4>
-            <label>Seri Port</label>
-            <select name="serial_port" id="serial_port">
-              <option value="">Portlar yükleniyor...</option>
-            </select>
+        <div class="settings-section">
+          <h4>Modbus / Seri Ayarlar</h4>
+          <label>Seri Port</label>
+          <select name="serial_port" id="serial_port">
+            <option value="">Portlar yükleniyor...</option>
+          </select>
 
-            <label>Baudrate</label>
-            <select name="baudrate">
-              <option>9600</option>
-              <option>19200</option>
-              <option>38400</option>
-              <option>57600</option>
-              <option>115200</option>
-            </select>
+          <label>Baudrate</label>
+          <select name="baudrate">
+            <option>9600</option>
+            <option>19200</option>
+            <option>38400</option>
+            <option>57600</option>
+            <option>115200</option>
+          </select>
 
-            <label>Data Bits</label>
-            <select name="data_bits">
-              <option value="8">8</option>
-              <option value="7">7</option>
-            </select>
+          <label>Data Bits</label>
+          <select name="data_bits">
+            <option value="8">8</option>
+            <option value="7">7</option>
+          </select>
 
-            <label>Parity</label>
-            <select name="parity">
-              <option value="N">None</option>
-              <option value="E">Even</option>
-              <option value="O">Odd</option>
-            </select>
+          <label>Parity</label>
+          <select name="parity">
+            <option value="N">None</option>
+            <option value="E">Even</option>
+            <option value="O">Odd</option>
+          </select>
 
-            <label>Stop Bits</label>
-            <select name="stop_bits">
-              <option value="1">1</option>
-              <option value="2">2</option>
-            </select>
+          <label>Stop Bits</label>
+          <select name="stop_bits">
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+        </div>
 
-            <h4>Veri Güncelleme</h4>
-            <label>Veri Güncelleme Aralığı (saniye)</label>
-            <input type="number" name="interval" value="10" required />
+        <div class="settings-section">
+          <h4>Zamanlama ve Güncelleme</h4>
+          <label>Veri Güncelleme Aralığı (saniye)</label>
+          <input type="number" name="interval" value="10" required />
 
-            <button type="submit">Kaydet</button>
-            <p id="saveMsg" class="success-msg" style="display: none;">✅ Ayarlar kaydedildi!</p>
-          </form>
+          <button type="submit">Kaydet</button>
+          <p id="saveMsg" class="success-msg" style="display: none;">✅ Ayarlar kaydedildi!</p>
         </div>
       </main>
 
