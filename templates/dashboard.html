@@ -34,7 +34,12 @@
       </header>
 
       <section class="cards" id="sensor-cards">
-        <!-- Sensör verileri buraya JS ile eklenecek -->
+        <div class="card" id="ldr">Aydınlık: <span>-</span></div>
+        <div class="card" id="weather">Hava Durumu: <span>-</span></div>
+        <div class="card" id="air">Hava Kalitesi: <span>-</span></div>
+        <div class="card" id="pv">PV Güç: <span>-</span></div>
+        <div class="card" id="bms">Batarya SOC: <span>-</span></div>
+        <div class="card" id="pir">Hareket: <span>-</span></div>
       </section>
 
       <section class="charts">
@@ -45,6 +50,10 @@
         <div class="chart-box">
           <h3>Nem Dağılımı</h3>
           <canvas id="humidityDoughnut"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>Güneş Enerjisi Üretimi</h3>
+          <canvas id="powerChart"></canvas>
         </div>
       </section>
 
