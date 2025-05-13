@@ -6,16 +6,13 @@ from relay_control import apply_logic
 
 SENSOR_FILE = "sensors.json"
 
-
 def load_settings():
     with open("settings.json") as f:
         return json.load(f)
 
-
 def read_float32_ieee754(registers):
     combined = (registers[0] << 16) | registers[1]
     return struct.unpack('>f', combined.to_bytes(4, byteorder='big'))[0]
-
 
 def classify_air_quality(pm2_5, co2):
     score = 0
@@ -33,7 +30,6 @@ def classify_air_quality(pm2_5, co2):
     }
     return levels.get(score, ("Bilinmiyor", 0))
 
-
 def estimate_weather(temp, humidity, lux):
     if temp > 25 and humidity < 50 and lux > 20000:
         return "Güneşli ve sıcak"
@@ -45,7 +41,6 @@ def estimate_weather(temp, humidity, lux):
         return "Ilık ve nemli"
     else:
         return "Kararsız hava koşulları"
-
 
 def read_sensors():
     settings = load_settings()
@@ -71,72 +66,114 @@ def read_sensors():
     # --- LDR ---
     try:
         r = client.read_holding_registers(address=0x0000, count=2, slave=1)
-        lux = (r.registers[0] << 16) | r.registers[1]
-        result["ldr_lux"] = lux
-        result["is_dark"] = lux < 20000
+        if not r.isError():
+            lux = (r.registers[0] << 16) | r.registers[1]
+            result["ldr_lux"] = lux
+            result["is_dark"] = lux < 20000
+        else:
+            print("LDR:", r)
     except Exception as e:
-        print("LDR:", e)
-        lux = 0
+        print("LDR Exception:", e)
 
     # --- ENVIRONMENTAL SENSOR ---
     try:
-        co2 = read_float32_ieee754(client.read_holding_registers(0x0008, 2, slave=123).registers)
-        temp = read_float32_ieee754(client.read_holding_registers(0x000E, 2, slave=123).registers)
-        hum = read_float32_ieee754(client.read_holding_registers(0x0010, 2, slave=123).registers)
-        pm25 = read_float32_ieee754(client.read_holding_registers(0x000A, 2, slave=123).registers)
-        pm10 = read_float32_ieee754(client.read_holding_registers(0x000C, 2, slave=123).registers)
-        illumination = read_float32_ieee754(client.read_holding_registers(0x0012, 2, slave=123).registers)
+        co2 = client.read_holding_registers(0x0008, 2, slave=123)
+        temp = client.read_holding_registers(0x000E, 2, slave=123)
+        hum = client.read_holding_registers(0x0010, 2, slave=123)
+        pm25 = client.read_holding_registers(0x000A, 2, slave=123)
+        pm10 = client.read_holding_registers(0x000C, 2, slave=123)
+        illumination = client.read_holding_registers(0x0012, 2, slave=123)
 
-        result["co2"] = round(co2, 2)
-        result["temperature"] = round(temp, 2)
-        result["humidity"] = round(hum, 2)
-        result["pm2_5"] = round(pm25, 2)
-        result["pm10"] = round(pm10, 2)
-        result["illumination"] = round(illumination, 2)
+        if all(not x.isError() for x in [co2, temp, hum, pm25, pm10, illumination]):
+            co2_val = read_float32_ieee754(co2.registers)
+            temp_val = read_float32_ieee754(temp.registers)
+            hum_val = read_float32_ieee754(hum.registers)
+            pm25_val = read_float32_ieee754(pm25.registers)
+            pm10_val = read_float32_ieee754(pm10.registers)
+            illum_val = read_float32_ieee754(illumination.registers)
 
-        air_text, air_score = classify_air_quality(pm25, co2)
-        result["air_quality"] = air_text
-        result["air_quality_score"] = air_score
+            result["co2"] = round(co2_val, 2)
+            result["temperature"] = round(temp_val, 2)
+            result["humidity"] = round(hum_val, 2)
+            result["pm2_5"] = round(pm25_val, 2)
+            result["pm10"] = round(pm10_val, 2)
+            result["illumination"] = round(illum_val, 2)
 
-        result["weather_status"] = estimate_weather(temp, hum, lux)
+            air_text, air_score = classify_air_quality(pm25_val, co2_val)
+            result["air_quality"] = air_text
+            result["air_quality_score"] = air_score
 
+            lux = result.get("ldr_lux", 0)
+            result["weather_status"] = estimate_weather(temp_val, hum_val, lux)
+        else:
+            print("EnvSensor: modbus read error")
     except Exception as e:
-        print("EnvSensor:", e)
+        print("EnvSensor Exception:", e)
 
     # --- MPPT ---
     try:
-        volt = client.read_input_registers(0x3000, 1, slave=3).registers[0] / 100.0
-        curr = client.read_input_registers(0x3001, 1, slave=3).registers[0] / 100.0
-        result["pv_voltage"] = volt
-        result["pv_current"] = curr
-        result["pv_power"] = round(volt * curr, 2)
-        result["mppt_status"] = "Charging"
+        pv_v = client.read_input_registers(0x3000, 1, slave=3)
+        pv_c = client.read_input_registers(0x3001, 1, slave=3)
+        if not pv_v.isError() and not pv_c.isError():
+            volt = pv_v.registers[0] / 100.0
+            curr = pv_c.registers[0] / 100.0
+            result["pv_voltage"] = volt
+            result["pv_current"] = curr
+            result["pv_power"] = round(volt * curr, 2)
+            result["mppt_status"] = "Charging"
+        else:
+            print("MPPT: modbus read error")
     except Exception as e:
-        print("MPPT:", e)
+        print("MPPT Exception:", e)
 
     # --- PIR ---
     try:
-        pir_value = client.read_holding_registers(0x0006, 1, slave=2).registers[0]
-        result["motion_detected"] = pir_value == 1
-        result["display_should_be_on"] = pir_value == 1
+        pir = client.read_holding_registers(0x0006, 1, slave=2)
+        if not pir.isError():
+            pir_value = pir.registers[0]
+            result["motion_detected"] = pir_value == 1
+            result["display_should_be_on"] = pir_value == 1
+        else:
+            print("PIR: modbus read error")
     except Exception as e:
-        print("PIR:", e)
+        print("PIR Exception:", e)
 
     # --- BMS ---
     try:
-        bv = client.read_input_registers(0x3004, 1, slave=4).registers[0] / 100.0
-        bc = client.read_input_registers(0x3005, 1, slave=4).registers[0] / 100.0
-        result["battery_voltage"] = bv
-        result["battery_current"] = bc
-        result["battery_power"] = round(bv * bc, 2)
-        result["battery_soc"] = client.read_input_registers(0x3020, 1, slave=4).registers[0]
-        result["battery_soh"] = client.read_input_registers(0x3021, 1, slave=4).registers[0]
-        result["battery_temp"] = client.read_input_registers(0x3022, 1, slave=4).registers[0] / 10.0
-        result["discharge_time"] = client.read_input_registers(0x3023, 1, slave=4).registers[0]
-        result["charge_time"] = client.read_input_registers(0x3024, 1, slave=4).registers[0]
-        result["bms_low_power_mode"] = result["battery_soc"] < 30
+        regs = {}
+        addresses = {
+            "battery_voltage": 0x3004,
+            "battery_current": 0x3005,
+            "battery_soc": 0x3020,
+            "battery_soh": 0x3021,
+            "battery_temp": 0x3022,
+            "discharge_time": 0x3023,
+            "charge_time": 0x3024
+        }
+        for key, addr in addresses.items():
+            r = client.read_input_registers(addr, 1, slave=4)
+            if not r.isError():
+                regs[key] = r.registers[0]
+            else:
+                print(f"BMS {key}: read error")
+
+        if "battery_voltage" in regs and "battery_current" in regs:
+            bv = regs["battery_voltage"] / 100.0
+            bc = regs["battery_current"] / 100.0
+            result["battery_voltage"] = bv
+            result["battery_current"] = bc
+            result["battery_power"] = round(bv * bc, 2)
+
+        result["battery_soc"] = regs.get("battery_soc")
+        result["battery_soh"] = regs.get("battery_soh")
+        if "battery_temp" in regs:
+            result["battery_temp"] = regs["battery_temp"] / 10.0
+        result["discharge_time"] = regs.get("discharge_time")
+        result["charge_time"] = regs.get("charge_time")
+        result["bms_low_power_mode"] = result.get("battery_soc", 100) < 30
+
     except Exception as e:
-        print("BMS:", e)
+        print("BMS Exception:", e)
 
     client.close()
 
@@ -145,7 +182,6 @@ def read_sensors():
 
     apply_logic(result)
     print("✅ Veriler sensors.json'a yazıldı ve röle kontrolü uygulandı.")
-
 
 if __name__ == "__main__":
     while True:
