@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>nuGateway Dashboard</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -13,14 +13,13 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
-        <h2>nuGateway</h2>
+        <h2>Nu Gateway</h2>
       </div>
       <nav class="nav">
         <ul>
-          <li class="active">Dashboard</li>
-          <li>Ayarlar</li>
-          <li>Röle Kontrol</li>
-          <li>Destek</li>
+          <li><a href="/dashboard" class="nav-link active">Dashboard</a></li>
+          <li><a href="/devices" class="nav-link">Cihazlar</a></li>
+          <li><a href="/settings" class="nav-link">Ayarlar</a></li>
         </ul>
       </nav>
     </aside>
@@ -29,7 +28,7 @@
       <header class="main-header">
         <h1>Akıllı Sensör Dashboard</h1>
         <div class="user-info">
-          <span>John Doe</span>
+          <span>Cafer DOGANAY</span>
           <img src="/static/user-icon.png" class="user-avatar" />
         </div>
       </header>
@@ -55,6 +54,6 @@
     </div>
   </div>
 
-  <script src="/static/main.js"></script>
+  <script src="/static/js/main.js"></script>
 </body>
 </html>
