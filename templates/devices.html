@@ -7,36 +7,41 @@
   <link rel="stylesheet" href="/static/css/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    body {
+      background-color: #f1f5f9;
+    }
+    .device-container {
+      max-width: 1000px;
+      margin: 2rem auto;
+      background: #ffffff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
     .device-table {
       width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      margin-top: 1rem;
-      background: #1e293b;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    }
-    .device-table thead {
-      background-color: #334155;
+      border-collapse: collapse;
     }
     .device-table th, .device-table td {
-      padding: 14px 16px;
+      padding: 1rem;
       text-align: left;
+      border-bottom: 1px solid #e2e8f0;
     }
     .device-table th {
-      font-size: 0.95rem;
-      font-weight: bold;
-      color: #f1f5f9;
-      border-bottom: 1px solid #475569;
-    }
-    .device-table td {
-      font-size: 0.95rem;
-      color: #e2e8f0;
-      border-bottom: 1px solid #334155;
+      background-color: #f8fafc;
+      font-weight: 600;
+      color: #0f172a;
     }
     .device-table tr:hover {
-      background-color: #293649;
+      background-color: #f1f5f9;
+    }
+    .status-ok {
+      color: #16a34a;
+      font-weight: 500;
+    }
+    .status-error {
+      color: #dc2626;
+      font-weight: 500;
     }
   </style>
 </head>
@@ -58,25 +63,60 @@
 
     <div class="main">
       <header class="main-header">
-        <h1>Cihaz Durumları</h1>
+        <h1>Bağlı Cihazlar</h1>
         <div class="user-info">
           <span>Cafer DOGANAY</span>
           <img src="/static/user-icon.png" class="user-avatar" />
         </div>
       </header>
 
-      <main class="content">
+      <main class="device-container">
         <table class="device-table">
           <thead>
             <tr>
-              <th>Cihaz</th>
-              <th>Değer</th>
+              <th>Cihaz Adı</th>
+              <th>Slave ID</th>
+              <th>Protokol</th>
               <th>Durum</th>
               <th>Açıklama</th>
             </tr>
           </thead>
-          <tbody id="device-rows">
-            <!-- Veriler buraya JS ile yüklenecek -->
+          <tbody>
+            <tr>
+              <td>LDR Sensör</td>
+              <td>1</td>
+              <td>Modbus RTU</td>
+              <td class="status-ok">Bağlı</td>
+              <td>Aydınlık seviyesi ölçümü</td>
+            </tr>
+            <tr>
+              <td>Çevre Sensörü</td>
+              <td>123</td>
+              <td>Modbus RTU</td>
+              <td class="status-ok">Bağlı</td>
+              <td>Sıcaklık, nem, CO₂, PM2.5/PM10 ölçümü</td>
+            </tr>
+            <tr>
+              <td>PIR Sensör</td>
+              <td>2</td>
+              <td>Modbus RTU</td>
+              <td class="status-ok">Bağlı</td>
+              <td>Hareket algılama</td>
+            </tr>
+            <tr>
+              <td>MPPT Solar Şarj</td>
+              <td>3</td>
+              <td>Modbus RTU</td>
+              <td class="status-ok">Bağlı</td>
+              <td>PV voltaj, akım, güç</td>
+            </tr>
+            <tr>
+              <td>BMS (Batarya Yönetimi)</td>
+              <td>4</td>
+              <td>Modbus RTU</td>
+              <td class="status-ok">Bağlı</td>
+              <td>Voltaj, SOC, sıcaklık</td>
+            </tr>
           </tbody>
         </table>
       </main>
@@ -86,36 +126,5 @@
       </footer>
     </div>
   </div>
-
-  <script>
-    async function loadDeviceData() {
-      const res = await fetch("/sensors");
-      const data = await res.json();
-      const tbody = document.getElementById("device-rows");
-      tbody.innerHTML = "";
-
-      const rows = [
-        ["LDR Sensörü", `${data.ldr_lux} Lux`, data.is_dark ? "Karanlık" : "Aydınlık", "Aydınlık seviyesi ölçülüyor"],
-        ["Hava Durumu", "-", "-", data.weather_status || "-"],
-        ["Hava Kalitesi", `${data.air_quality_score}%`, data.air_quality, "PM2.5 ve CO₂ verilerine göre"],
-        ["PV Voltajı", `${data.pv_voltage} V`, "✓", "Güneş paneli voltajı"],
-        ["PV Akımı", `${data.pv_current} A`, "✓", "Güneş paneli akımı"],
-        ["PV Gücü", `${data.pv_power} W`, data.mppt_status || "-", "Üretilen elektrik gücü"],
-        ["Batarya SOC", `${data.battery_soc}%`, data.bms_low_power_mode ? "Düşük Güç Modu" : "Normal", "Şarj durumu"],
-        ["Batarya SOH", `${data.battery_soh}%`, "✓", "Sağlık durumu"],
-        ["Batarya Sıcaklığı", `${data.battery_temp} °C`, "✓", "BMS sıcaklık ölçümü"],
-        ["Hareket Algılayıcı", data.motion_detected ? "Var" : "Yok", data.motion_detected ? "Aktif" : "Pasif", "PIR sensör durumu"]
-      ];
-
-      for (const [dev, val, stat, desc] of rows) {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${dev}</td><td>${val}</td><td>${stat}</td><td>${desc}</td>`;
-        tbody.appendChild(row);
-      }
-    }
-
-    loadDeviceData();
-    setInterval(loadDeviceData, 10000);
-  </script>
 </body>
 </html>
