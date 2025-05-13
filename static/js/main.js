@@ -1,81 +1,87 @@
-// main.js - dashboard'a sensors.json'dan veri çekme ve kartlara yazma
+async function fetchSensorData() {
+  try {
+    const res = await fetch("/sensors");
+    const data = await res.json();
 
-document.addEventListener("DOMContentLoaded", () => {
-  fetch("/sensors")
-    .then((response) => response.json())
-    .then((data) => {
-      const container = document.getElementById("sensor-cards");
-      container.innerHTML = "";
+    // Kart verilerini güncelle
+    document.querySelector("#ldr span").textContent = `${data.ldr_lux} Lux (${data.is_dark ? "Karanlık" : "Aydınlık"})`;
+    document.querySelector("#weather span").textContent = data.weather_status || "-";
+    document.querySelector("#air span").textContent = `${data.air_quality || "-"} (%${data.air_quality_score || 0})`;
+    document.querySelector("#pv span").textContent = `${data.pv_power || 0} W (${data.pv_voltage}V / ${data.pv_current}A)`;
+    document.querySelector("#bms span").textContent = `${data.battery_soc || 0}%`;
+    document.querySelector("#pir span").textContent = data.motion_detected ? "Hareket Var" : "Hareket Yok";
 
-      data.forEach((sensor) => {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-          <h4>${sensor.name}</h4>
-          <div class="value">${sensor.value} ${sensor.unit || ""}</div>
-        `;
-        container.appendChild(card);
-      });
+    // Grafiklere veri ekle
+    updateCharts(data);
+  } catch (err) {
+    console.error("Veri alınamadı:", err);
+  }
+}
 
-      // örnek grafik çizimi (sadece sıcaklık için demo)
-      const temp = data.find((d) => d.name.includes("Sıcaklık"));
-      if (temp) drawTemperatureChart([temp.value]);
+// Grafik nesneleri
+let tempChart;
+let humidityDoughnut;
+let powerChart;
+let tempData = [];
+let timeLabels = [];
 
-      const hum = data.find((d) => d.name.includes("Nem"));
-      if (hum) drawHumidityChart(hum.value);
-    })
-    .catch((err) => console.error("Veri yükleme hatası:", err));
-});
+function updateCharts(data) {
+  const now = new Date().toLocaleTimeString();
+  if (tempData.length > 10) {
+    tempData.shift();
+    timeLabels.shift();
+  }
+  tempData.push(data.temperature || 0);
+  timeLabels.push(now);
 
-function drawTemperatureChart(values) {
-  const ctx = document.getElementById("tempChart").getContext("2d");
-  new Chart(ctx, {
+  tempChart.data.labels = timeLabels;
+  tempChart.data.datasets[0].data = tempData;
+  tempChart.update();
+
+  humidityDoughnut.data.datasets[0].data = [data.humidity || 0, 100 - (data.humidity || 0)];
+  humidityDoughnut.update();
+
+  powerChart.data.labels.push(now);
+  powerChart.data.datasets[0].data.push(data.pv_power || 0);
+  if (powerChart.data.labels.length > 10) {
+    powerChart.data.labels.shift();
+    powerChart.data.datasets[0].data.shift();
+  }
+  powerChart.update();
+}
+
+function setupCharts() {
+  const ctxTemp = document.getElementById("tempChart").getContext("2d");
+  tempChart = new Chart(ctxTemp, {
     type: "line",
     data: {
-      labels: ["Şu an"],
-      datasets: [
-        {
-          label: "Sıcaklık (°C)",
-          data: values,
-          borderColor: "#004080",
-          backgroundColor: "rgba(0, 64, 128, 0.1)",
-          tension: 0.3,
-        },
-      ],
+      labels: [],
+      datasets: [{ label: "Sıcaklık (°C)", data: [], borderColor: "#ff6b6b" }]
     },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-      },
-      scales: {
-        y: {
-          beginAtZero: false,
-        },
-      },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
+
+  const ctxHum = document.getElementById("humidityDoughnut").getContext("2d");
+  humidityDoughnut = new Chart(ctxHum, {
+    type: "doughnut",
+    data: {
+      labels: ["Nem", "Kalan"],
+      datasets: [{ data: [0, 100], backgroundColor: ["#4ecdc4", "#cccccc"] }]
     },
+    options: { responsive: true, cutout: "70%" }
+  });
+
+  const ctxPower = document.getElementById("powerChart").getContext("2d");
+  powerChart = new Chart(ctxPower, {
+    type: "bar",
+    data: {
+      labels: [],
+      datasets: [{ label: "PV Güç (W)", data: [], backgroundColor: "#ffa502" }]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
   });
 }
 
-function drawHumidityChart(value) {
-  const ctx = document.getElementById("humidityDoughnut").getContext("2d");
-  new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels: ["Nem", "Boşluk"],
-      datasets: [
-        {
-          data: [value, 100 - value],
-          backgroundColor: ["#00ADEF", "#e0e0e0"],
-          borderWidth: 0,
-        },
-      ],
-    },
-    options: {
-      cutout: "70%",
-      plugins: {
-        legend: { display: false },
-      },
-    },
-  });
-}
+setupCharts();
+fetchSensorData();
+setInterval(fetchSensorData, 10000);
