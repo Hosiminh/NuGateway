@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>nuGateway Cihazlar</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <title>nuGateway | Cihazlar</title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -12,7 +12,7 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
-        <h2>nuGateway</h2>
+        <h2>Nu Gateway</h2>
       </div>
       <nav class="nav">
         <ul>
@@ -25,15 +25,27 @@
 
     <div class="main">
       <header class="main-header">
-        <h1>Ağa Bağlı Cihazlar</h1>
+        <h1>Cihaz Durumları</h1>
         <div class="user-info">
           <span>Cafer DOGANAY</span>
           <img src="/static/user-icon.png" class="user-avatar" />
         </div>
       </header>
 
-      <main class="cards" id="device-list">
-        <!-- Cihaz kartları burada yüklenir -->
+      <main class="content">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>Cihaz</th>
+              <th>Değer</th>
+              <th>Durum</th>
+              <th>Açıklama</th>
+            </tr>
+          </thead>
+          <tbody id="device-rows">
+            <!-- Veriler buraya JS ile yüklenecek -->
+          </tbody>
+        </table>
       </main>
 
       <footer class="footer">
@@ -43,25 +55,34 @@
   </div>
 
   <script>
-    const devices = [
-      { id: 1, name: "LDR Sensör", status: "Aktif", type: "Modbus RTU", address: 1 },
-      { id: 2, name: "Çevre Sensörü", status: "Aktif", type: "Modbus RTU", address: 123 },
-      { id: 3, name: "PIR Sensör", status: "Aktif", type: "Modbus RTU", address: 2 },
-      { id: 4, name: "MPPT Şarj Cihazı", status: "Aktif", type: "Modbus RTU", address: 3 }
-    ];
+    async function loadDeviceData() {
+      const res = await fetch("/sensors");
+      const data = await res.json();
+      const tbody = document.getElementById("device-rows");
+      tbody.innerHTML = "";
 
-    const container = document.getElementById("device-list");
-    devices.forEach(dev => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <h4>${dev.name}</h4>
-        <p><strong>Tip:</strong> ${dev.type}</p>
-        <p><strong>Adres:</strong> ${dev.address}</p>
-        <p><strong>Durum:</strong> <span style="color: green; font-weight: bold;">${dev.status}</span></p>
-      `;
-      container.appendChild(card);
-    });
+      const rows = [
+        ["LDR Sensörü", `${data.ldr_lux} Lux`, data.is_dark ? "Karanlık" : "Aydınlık", "Aydınlık seviyesi ölçülüyor"],
+        ["Hava Durumu", "-", "-", data.weather_status || "-"],
+        ["Hava Kalitesi", `${data.air_quality_score}%`, data.air_quality, "PM2.5 ve CO₂ verilerine göre"],
+        ["PV Voltajı", `${data.pv_voltage} V`, "✓", "Güneş paneli voltajı"],
+        ["PV Akımı", `${data.pv_current} A`, "✓", "Güneş paneli akımı"],
+        ["PV Gücü", `${data.pv_power} W`, data.mppt_status || "-", "Üretilen elektrik gücü"],
+        ["Batarya SOC", `${data.battery_soc}%`, data.bms_low_power_mode ? "Düşük Güç Modu" : "Normal", "Şarj durumu"],
+        ["Batarya SOH", `${data.battery_soh}%`, "✓", "Sağlık durumu"],
+        ["Batarya Sıcaklığı", `${data.battery_temp} °C`, "✓", "BMS sıcaklık ölçümü"],
+        ["Hareket Algılayıcı", data.motion_detected ? "Var" : "Yok", data.motion_detected ? "Aktif" : "Pasif", "PIR sensör durumu"]
+      ];
+
+      for (const [dev, val, stat, desc] of rows) {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${dev}</td><td>${val}</td><td>${stat}</td><td>${desc}</td>`;
+        tbody.appendChild(row);
+      }
+    }
+
+    loadDeviceData();
+    setInterval(loadDeviceData, 10000);
   </script>
 </body>
 </html>
