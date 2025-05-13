@@ -23,10 +23,10 @@ def devices():
 def settings():
     return render_template("settings.html")
 
-@app.route("/sensors")
+@app.route('/sensors')
 def sensors():
     try:
-        with open("sensors.json") as f:
+        with open('sensors.json') as f:
             return jsonify(json.load(f))
     except Exception:
         return jsonify([])
@@ -39,17 +39,18 @@ def get_settings():
         with open(SETTINGS_FILE) as f:
             return jsonify(json.load(f))
     else:
+        # varsayılan ayarlar
         return jsonify({
             "gateway_name": "nuGateway",
             "serial_port": "/dev/ttyUSB0",
             "baudrate": 9600,
             "interval": 10,
-            "mac_address": get_mac_address(),
-            "ip_address": get_ip_address(),
-            "location": "",
             "data_bits": 8,
+            "stop_bits": 1,
             "parity": "N",
-            "stop_bits": 1
+            "location": "",
+            "mac_address": "",
+            "ip_address": ""
         })
 
 @app.route("/save-settings", methods=["POST"])
@@ -59,31 +60,24 @@ def save_settings():
         json.dump(data, f, indent=2)
     return jsonify({"status": "ok"})
 
-@app.route("/serial-ports")
-def list_serial_ports():
-    ports = [p.device for p in serial.tools.list_ports.comports()]
-    return jsonify({"ports": ports})
-
 @app.route("/network-info")
-def get_network_info():
-    ip = get_ip_address()
-    mac = get_mac_address()
-    return jsonify({"ip": ip, "mac": mac})
-
-def get_ip_address():
+def network_info():
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except:
-        return "0.0.0.0"
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff)
+                        for ele in range(0, 2*6, 8)][::-1])
+        return jsonify({"ip": ip, "mac": mac})
+    except Exception:
+        return jsonify({"ip": "0.0.0.0", "mac": "00:00:00:00:00:00"})
 
-def get_mac_address():
-    mac_num = hex(uuid.getnode()).replace("0x", "").upper()
-    mac = ":".join(mac_num[i:i+2] for i in range(0, 12, 2))
-    return mac
+@app.route("/serial-ports")
+def serial_ports():
+    try:
+        ports = [port.device for port in serial.tools.list_ports.comports()]
+        return jsonify({"ports": ports})
+    except Exception:
+        return jsonify({"ports": []})
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0")
