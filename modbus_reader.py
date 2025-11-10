@@ -462,7 +462,61 @@ def read_env_sensor():
         # CO2 (Register 0x0008, FC 03, 2 register = 4 byte IEEE754)
         tx = bytes([SLAVE_ENV, 0x03, 0x00, 0x08, 0x00, 0x02])
         tx = add_crc(tx)
-        rx =================
+        rx = send_receive(tx)
+        
+        if rx and len(rx) >= 9 and check_crc(rx):
+            # 4 byte IEEE754 float (big-endian)
+            float_bytes = bytes([rx[3], rx[4], rx[5], rx[6]])
+            co2_value = struct.unpack('>f', float_bytes)[0]
+            modbus_data['env_co2'] = round(co2_value, 1)
+            print(f"    ✅ CO2: {modbus_data['env_co2']} ppm")
+        else:
+            print(f"    ⚠️ CO2 okunamadı")
+        
+        time.sleep(0.1)
+        
+        # Sıcaklık (Register 0x000E, FC 03)
+        tx = bytes([SLAVE_ENV, 0x03, 0x00, 0x0E, 0x00, 0x02])
+        tx = add_crc(tx)
+        rx = send_receive(tx)
+        
+        if rx and len(rx) >= 9 and check_crc(rx):
+            float_bytes = bytes([rx[3], rx[4], rx[5], rx[6]])
+            temp_value = struct.unpack('>f', float_bytes)[0]
+            modbus_data['env_temperature'] = round(temp_value, 1)
+            print(f"    ✅ Sıcaklık: {modbus_data['env_temperature']}°C")
+        else:
+            print(f"    ⚠️ Sıcaklık okunamadı")
+            
+    except Exception as e:
+        print(f"    ❌ Çevre sensörü okuma hatası: {e}")
+
+# ========================================
+# LDR OKUMA (Slave 0x04)
+# ========================================
+
+def read_ldr():
+    """LDR sensörü oku"""
+    print("  💡 LDR okuma...")
+    
+    try:
+        # LDR (Register 0x0000, FC 03, 2 register = IEEE754)
+        tx = bytes([SLAVE_LDR, 0x03, 0x00, 0x00, 0x00, 0x02])
+        tx = add_crc(tx)
+        rx = send_receive(tx)
+        
+        if rx and len(rx) >= 9 and check_crc(rx):
+            float_bytes = bytes([rx[3], rx[4], rx[5], rx[6]])
+            lux_value = struct.unpack('>f', float_bytes)[0]
+            modbus_data['ldr_lux'] = round(lux_value, 0)
+            print(f"    ✅ LDR: {modbus_data['ldr_lux']} lux")
+        else:
+            print(f"    ⚠️ LDR okunamadı")
+            
+    except Exception as e:
+        print(f"    ❌ LDR okuma hatası: {e}")
+
+# ========================================
 # ANA OKUMA FONKSİYONU
 # ========================================
 
