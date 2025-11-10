@@ -108,3 +108,51 @@ document.addEventListener("DOMContentLoaded", () => {
   loadDeviceList();
   setInterval(loadSensorData, 10000);
 });
+(nuEnv) cafer@raspberrypi:~/Desktop/NuGateway/static/js $ cat footer-loader.js
+// footer-loader.js - Flask static klasörü için
+// Konum: NuGateway/statics/footer-loader.js
+
+function loadFooter() {
+    const footerContainer = document.getElementById('footer-container');
+    
+    if (!footerContainer) {
+        console.error('footer-container elementi bulunamadı!');
+        return;
+    }
+
+    // Flask template yapısı için doğru yol
+    fetch('/templates/partials/footer.html')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Footer yüklenemedi: ' + response.status);
+            }
+            return response.text();
+        })
+        .then(html => {
+            footerContainer.innerHTML = html;
+            console.log('✅ Footer başarıyla yüklendi');
+        })
+        .catch(error => {
+            console.error('❌ Footer yükleme hatası:', error);
+            // Fallback footer
+            footerContainer.innerHTML = `
+                <div class="footer" style="background: #1a1a1a; color: #ccc; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; font-size: 14px;">
+                    <div style="display: flex; gap: 20px;">
+                        <div>NuGateway</div>
+                        <div>Dashboard</div>
+                        <div>Devices</div>
+                        <div>MPPT</div>
+                        <div>Settings</div>
+                    </div>
+                    <div>Nu Gateway v1.0 - Footer yüklenemedi</div>
+                </div>
+            `;
+        });
+}
+
+// Sayfa yüklendiğinde footer'ı otomatik yükle
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadFooter);
+} else {
+    loadFooter();
+}

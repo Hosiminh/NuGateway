@@ -42,6 +42,8 @@ class GatewayConfig:
     humidity_alarm_high: float = 85.0
     co2_alarm_high: float = 2000.0
     battery_soc_alarm_low: int = 20
+    use_simulator: bool = False
+    modbus_in_flask: bool = False
 
 class ConfigManager:
     """Configuration manager with file persistence"""
@@ -92,3 +94,13 @@ class ConfigManager:
 
 # Global config instance
 config_manager = ConfigManager()
+# NuGateway patch: add defaults
+try:
+    _ = config_manager
+except NameError:
+    pass
+else:
+    if config_manager.get("use_simulator") is None:
+        config_manager.set("use_simulator", False)
+    if config_manager.get("modbus_in_flask") is None:
+        config_manager.set("modbus_in_flask", False)

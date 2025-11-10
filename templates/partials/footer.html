@@ -1,0 +1,97 @@
+<div class="footer">
+    <div class="footer-left">
+        <div>NuGateway</div>
+        <div>Dashboard</div>
+        <div>Devices</div>
+        <div>MPPT</div>
+        <div>Settings</div>
+    </div>
+    <div class="footer-right">
+        <div class="status-indicator">
+            <span class="status-dot" id="serialStatus"></span>
+            <span id="serialStatusText">Serial: offline</span>
+        </div>
+        <div id="lastUpdate">Last update: --:--:--</div>
+        <div>v1.0</div>
+    </div>
+</div>
+
+<style>
+.footer {
+    background: #1a1a1a;
+    color: #ccc;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+}
+
+.footer-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.footer-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff4444;
+}
+
+.status-dot.online {
+    background: #44ff44;
+}
+</style>
+
+<script>
+// Footer JavaScript - Last update zamanını güncelle
+function updateFooterTime() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('tr-TR', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+    });
+    const updateEl = document.getElementById('lastUpdate');
+    if (updateEl) {
+        updateEl.textContent = 'Last update: ' + timeString;
+    }
+}
+
+// Serial status güncelleme fonksiyonu
+function updateSerialStatus(isOnline) {
+    const statusDot = document.getElementById('serialStatus');
+    const statusText = document.getElementById('serialStatusText');
+    
+    if (statusDot && statusText) {
+        if (isOnline) {
+            statusDot.classList.add('online');
+            statusText.textContent = 'Serial: online';
+        } else {
+            statusDot.classList.remove('online');
+            statusText.textContent = 'Serial: offline';
+        }
+    }
+}
+
+// Her saniye zamanı güncelle
+setInterval(updateFooterTime, 1000);
+updateFooterTime(); // İlk yükleme
+
+// Global fonksiyon olarak erişilebilir yap
+window.updateSerialStatus = updateSerialStatus;
+</script>

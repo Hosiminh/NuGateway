@@ -1,0 +1,18 @@
+[Unit]
+Description=nuGateway IoT Gateway System
+After=network.target
+
+[Service]
+Type=simple
+User=cafer
+Group=cafer
+WorkingDirectory=/home/cafer/Desktop/NuGateway
+Environment="PATH=/home/cafer/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/python3 /home/cafer/Desktop/NuGateway/app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

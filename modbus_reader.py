@@ -1,317 +1,546 @@
-from pymodbus.client import ModbusSerialClient
-import struct
-import json
+"""
+Nu Gateway - Modbus Reader (RAW Serial)
+Doğrudan serial port kullanarak Modbus haberleşmesi
+Excel'den alınan register bilgilerine göre özelleştirilmiş
+"""
+
+import serial
 import time
-import logging
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
-from relay_control import apply_logic
-from config import config_manager
-from logger import sensor_logger, setup_logging
-from alarm_system import AlarmSystem
-from mqtt_client import MQTTClient
+import json
+import struct
+from datetime import datetime
 
-# Setup logging
-setup_logging(
-    log_level=config_manager.get('log_level', 'INFO'),
-    log_file=config_manager.get('log_file', 'nugateway.log')
-)
-logger = logging.getLogger(__name__)
+# ========================================
+# KONFIGÜRASYON
+# ========================================
 
-SENSOR_FILE = "sensors.json"
+SERIAL_PORT = '/dev/ttyUSB0'
+BAUDRATE = 9600
+TIMEOUT = 0.5
+READ_INTERVAL = 5  # Okuma periyodu (saniye)
 
-class SensorCache:
-    """Simple cache for sensor data with TTL"""
-    
-    def __init__(self, ttl_seconds: int = 5):
-        self.cache: Dict[str, Any] = {}
-        self.timestamps: Dict[str, datetime] = {}
-        self.ttl = timedelta(seconds=ttl_seconds)
-    
-    def get(self, key: str) -> Optional[Any]:
-        """Get cached value if not expired"""
-        if key in self.cache:
-            if datetime.now() - self.timestamps[key] < self.ttl:
-                return self.cache[key]
+MODBUS_DATA_FILE = 'modbus_data.json'
+COMMAND_FILE = 'modbus_commands.json'
+
+# Slave ID'ler
+SLAVE_BMS = 0x3D      # 61 (BMS)
+SLAVE_MPPT = 0x01     # 10 (Lumiax MPPT)
+SLAVE_ENV = 0x7B      # 123 (Çevre sensörü)
+SLAVE_LDR = 0x04      # 4 (LDR)
+
+# Global değişkenler
+ser = None
+modbus_data = {}
+
+# ========================================
+# CRC-16 MODBUS HESAPLAMA
+# ========================================
+
+def calculate_crc16(data):
+    """Modbus CRC-16 hesapla (LSB first)"""
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            if crc & 0x0001:
+                crc = (crc >> 1) ^ 0xA001
             else:
-                del self.cache[key]
-                del self.timestamps[key]
-        return None
-    
-    def set(self, key: str, value: Any):
-        """Set cache value with current timestamp"""
-        self.cache[key] = value
-        self.timestamps[key] = datetime.now()
+                crc >>= 1
+    return crc
 
-# Global cache instance
-sensor_cache = SensorCache()
+def add_crc(frame):
+    """Frame'e CRC ekle"""
+    crc = calculate_crc16(frame)
+    return frame + bytes([crc & 0xFF, (crc >> 8) & 0xFF])
 
-def read_float32_ieee754(registers) -> float:
-    """Convert two 16-bit registers to IEEE 754 float"""
+def check_crc(frame):
+    """CRC'yi kontrol et"""
+    if len(frame) < 3:
+        return False
+    data = frame[:-2]
+    received_crc = frame[-2] | (frame[-1] << 8)
+    calculated_crc = calculate_crc16(data)
+    return received_crc == calculated_crc
+
+# ========================================
+# SERIAL PORT İŞLEMLERİ
+# ========================================
+
+def open_serial():
+    """Serial portu aç"""
+    global ser
     try:
-        combined = (registers[0] << 16) | registers[1]
-        return struct.unpack('>f', combined.to_bytes(4, byteorder='big'))[0]
+        ser = serial.Serial(
+            port=SERIAL_PORT,
+            baudrate=BAUDRATE,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=TIMEOUT
+        )
+        print(f"✅ Serial port açıldı: {SERIAL_PORT} @ {BAUDRATE} baud")
+        time.sleep(0.1)  # Port stabilize olsun
+        return True
     except Exception as e:
-        logger.error(f"Float conversion error: {e}")
-        return 0.0
+        print(f"❌ Serial port açılamadı: {e}")
+        return False
 
-def classify_air_quality(pm2_5: float, co2: float) -> tuple:
-    """Classify air quality based on PM2.5 and CO2 levels"""
-    score = 0
-    
-    if pm2_5 > 55:
-        score += 2
-    elif pm2_5 > 35:
-        score += 1
-    
-    if co2 > 2000:
-        score += 2
-    elif co2 > 1200:
-        score += 1
-    
-    levels = {
-        0: ("Mükemmel", 0),
-        1: ("Orta", 25),
-        2: ("Düşük kalite", 50),
-        3: ("Kötü", 75),
-        4: ("Sağlıksız", 100)
-    }
-    
-    return levels.get(score, ("Bilinmiyor", 0))
+def close_serial():
+    """Serial portu kapat"""
+    global ser
+    if ser and ser.is_open:
+        ser.close()
+        print("🔒 Serial port kapatıldı")
 
-def estimate_weather(temp: float, humidity: float, lux: int) -> str:
-    """Estimate weather condition based on sensor data"""
-    if temp > 25 and humidity < 50 and lux > 20000:
-        return "Güneşli ve sıcak"
-    elif temp < 10 and humidity > 70 and lux < 10000:
-        return "Soğuk ve yağışlı"
-    elif 10 <= temp <= 20 and 50 <= humidity <= 70 and 10000 <= lux <= 20000:
-        return "Serin ve parçalı bulutlu"
-    elif 15 <= temp <= 25 and humidity > 70 and lux < 15000:
-        return "Ilık ve nemli"
-    else:
-        return "Kararsız hava koşulları"
-
-def read_sensor_safe(client, address: int, count: int, slave: int, 
-                     register_type: str = 'holding') -> Optional[Any]:
-    """Safe sensor reading with error handling and caching"""
-    cache_key = f"{slave}_{address}_{count}_{register_type}"
-    
-    # Check cache first
-    cached = sensor_cache.get(cache_key)
-    if cached is not None:
-        return cached
-    
+def send_receive(tx_frame, expected_length=None, timeout=0.5):
+    """Modbus frame gönder ve cevap al"""
     try:
-        if register_type == 'holding':
-            result = client.read_holding_registers(address, count, slave=slave)
-        else:  # input registers
-            result = client.read_input_registers(address, count, slave=slave)
+        if not ser or not ser.is_open:
+            return None
         
-        if not result.isError():
-            sensor_cache.set(cache_key, result)
-            return result
+        # Buffer'ı temizle
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+        
+        # Frame gönder
+        ser.write(tx_frame)
+        print(f"    TX: {tx_frame.hex().upper()}")
+        
+        # Cevap bekle
+        time.sleep(0.05)  # Cihazın cevap vermesi için kısa bekleme
+        
+        if expected_length:
+            # Belirli uzunlukta cevap bekle
+            rx_data = ser.read(expected_length)
         else:
-            logger.warning(f"Modbus error at slave={slave}, addr={address}: {result}")
+            # Mevcut buffer'daki tüm veriyi oku
+            rx_data = ser.read(ser.in_waiting or 255)
+        
+        if len(rx_data) > 0:
+            print(f"    RX: {rx_data.hex().upper()}")
+            return rx_data
+        else:
+            print(f"    RX: TIMEOUT")
             return None
             
     except Exception as e:
-        logger.error(f"Exception reading slave={slave}, addr={address}: {e}")
+        print(f"    ⚠️ Send/Receive hatası: {e}")
         return None
 
-def read_sensors(alarm_system: Optional[AlarmSystem] = None,
-                mqtt_client: Optional[MQTTClient] = None) -> Dict[str, Any]:
-    """Read all sensors and return data dictionary"""
-    
-    # Load configuration
-    config = config_manager.config
-    port = config.serial_port
-    baudrate = config.baudrate
-    
-    logger.info(f"Connecting to Modbus on {port} @ {baudrate} baud")
-    
-    # Create Modbus client
-    client = ModbusSerialClient(
-        method="rtu",
-        port=port,
-        baudrate=baudrate,
-        timeout=2,
-        stopbits=config.stop_bits,
-        bytesize=config.data_bits,
-        parity=config.parity
-    )
-    
-    if not client.connect():
-        logger.error("❌ Modbus connection failed!")
-        return {}
-    
-    result = {}
-    
-    # === LDR Sensor (Slave 1) ===
-    try:
-        r = read_sensor_safe(client, 0x0000, 2, 1, 'holding')
-        if r:
-            lux = (r.registers[0] << 16) | r.registers[1]
-            result["ldr_lux"] = lux
-            result["is_dark"] = lux < 20000
-            logger.debug(f"LDR: {lux} lux")
-    except Exception as e:
-        logger.error(f"LDR Exception: {e}")
-    
-    # === Environmental Sensor (Slave 123) ===
-    try:
-        co2 = read_sensor_safe(client, 0x0008, 2, 123, 'holding')
-        temp = read_sensor_safe(client, 0x000E, 2, 123, 'holding')
-        hum = read_sensor_safe(client, 0x0010, 2, 123, 'holding')
-        pm25 = read_sensor_safe(client, 0x000A, 2, 123, 'holding')
-        pm10 = read_sensor_safe(client, 0x000C, 2, 123, 'holding')
-        illumination = read_sensor_safe(client, 0x0012, 2, 123, 'holding')
-        
-        if all([co2, temp, hum, pm25, pm10, illumination]):
-            co2_val = read_float32_ieee754(co2.registers)
-            temp_val = read_float32_ieee754(temp.registers)
-            hum_val = read_float32_ieee754(hum.registers)
-            pm25_val = read_float32_ieee754(pm25.registers)
-            pm10_val = read_float32_ieee754(pm10.registers)
-            illum_val = read_float32_ieee754(illumination.registers)
-            
-            result["co2"] = round(co2_val, 2)
-            result["temperature"] = round(temp_val, 2)
-            result["humidity"] = round(hum_val, 2)
-            result["pm2_5"] = round(pm25_val, 2)
-            result["pm10"] = round(pm10_val, 2)
-            result["illumination"] = round(illum_val, 2)
-            
-            air_text, air_score = classify_air_quality(pm25_val, co2_val)
-            result["air_quality"] = air_text
-            result["air_quality_score"] = air_score
-            
-            lux = result.get("ldr_lux", 0)
-            result["weather_status"] = estimate_weather(temp_val, hum_val, lux)
-            
-            logger.debug(f"EnvSensor: T={temp_val}°C, H={hum_val}%, CO2={co2_val}ppm")
-        else:
-            logger.warning("EnvSensor: incomplete data")
-    except Exception as e:
-        logger.error(f"EnvSensor Exception: {e}")
-    
-    # === MPPT Charge Controller (Slave 3) ===
-    try:
-        pv_v = read_sensor_safe(client, 0x3000, 1, 3, 'input')
-        pv_c = read_sensor_safe(client, 0x3001, 1, 3, 'input')
-        
-        if pv_v and pv_c:
-            volt = pv_v.registers[0] / 100.0
-            curr = pv_c.registers[0] / 100.0
-            result["pv_voltage"] = round(volt, 2)
-            result["pv_current"] = round(curr, 2)
-            result["pv_power"] = round(volt * curr, 2)
-            result["mppt_status"] = "Charging" if curr > 0.1 else "Idle"
-            logger.debug(f"MPPT: {volt}V, {curr}A, {volt*curr}W")
-    except Exception as e:
-        logger.error(f"MPPT Exception: {e}")
-    
-    # === PIR Motion Sensor (Slave 2) ===
-    try:
-        pir = read_sensor_safe(client, 0x0006, 1, 2, 'holding')
-        if pir:
-            pir_value = pir.registers[0]
-            result["motion_detected"] = pir_value == 1
-            result["display_should_be_on"] = pir_value == 1
-            logger.debug(f"PIR: {'Motion' if pir_value == 1 else 'No motion'}")
-    except Exception as e:
-        logger.error(f"PIR Exception: {e}")
-    
-    # === BMS Battery Management (Slave 4) ===
-    try:
-        bv = read_sensor_safe(client, 0x3004, 1, 4, 'input')
-        bc = read_sensor_safe(client, 0x3005, 1, 4, 'input')
-        soc = read_sensor_safe(client, 0x3020, 1, 4, 'input')
-        soh = read_sensor_safe(client, 0x3021, 1, 4, 'input')
-        bt = read_sensor_safe(client, 0x3022, 1, 4, 'input')
-        dt = read_sensor_safe(client, 0x3023, 1, 4, 'input')
-        ct = read_sensor_safe(client, 0x3024, 1, 4, 'input')
-        
-        if bv and bc:
-            voltage = bv.registers[0] / 100.0
-            current = bc.registers[0] / 100.0
-            result["battery_voltage"] = round(voltage, 2)
-            result["battery_current"] = round(current, 2)
-            result["battery_power"] = round(voltage * current, 2)
-        
-        if soc:
-            result["battery_soc"] = soc.registers[0]
-        if soh:
-            result["battery_soh"] = soh.registers[0]
-        if bt:
-            result["battery_temp"] = bt.registers[0] / 10.0
-        if dt:
-            result["discharge_time"] = dt.registers[0]
-        if ct:
-            result["charge_time"] = ct.registers[0]
-        
-        result["bms_low_power_mode"] = result.get("battery_soc", 100) < 30
-        
-        logger.debug(f"BMS: {result.get('battery_voltage')}V, SOC={result.get('battery_soc')}%")
-        
-    except Exception as e:
-        logger.error(f"BMS Exception: {e}")
-    
-    client.close()
-    
-    # Save to JSON file
-    try:
-        with open(SENSOR_FILE, "w") as f:
-            json.dump(result, f, indent=2)
-        logger.info(f"✅ Data saved to {SENSOR_FILE}")
-    except Exception as e:
-        logger.error(f"Failed to save sensor data: {e}")
-    
-    # Log sensor data
-    if config_manager.get('enable_data_logging', True):
-        sensor_logger.log(result)
-    
-    # Check alarms
-    if alarm_system:
-        alarms = alarm_system.check_alarms(result)
-        if alarms and mqtt_client and mqtt_client.is_connected():
-            for alarm in alarms:
-                mqtt_client.publish_alarm(alarm.__dict__)
-    
-    # Publish to MQTT
-    if mqtt_client and mqtt_client.is_connected():
-        mqtt_client.publish_sensor_data(result)
-    
-    # Apply relay logic
-    try:
-        apply_logic(result)
-        logger.debug("Relay control applied")
-    except Exception as e:
-        logger.error(f"Relay control error: {e}")
-    
-    return result
+# ========================================
+# BMS OKUMA (Slave 0x3D)
+# ========================================
 
-if __name__ == "__main__":
-    # Initialize alarm system
-    alarm_sys = AlarmSystem(config_manager)
-    
-    # Initialize MQTT client
-    mqtt = MQTTClient(config_manager)
-    if config_manager.get('mqtt_enabled', False):
-        mqtt.connect()
-    
-    logger.info("🚀 Modbus Reader başlatıldı")
+def read_bms():
+    """BMS verilerini oku ve parametreleri anlamlı biçimde çöz"""
+    print("  📦 BMS okuma...")
+
+    def bms_send(cmd, rw=0x01, data=b""):
+        frame = bytes([0x3D, 0x01, 0x02, cmd, rw, 0x00, len(data)]) + data
+        chk = (sum(frame) & 0xFF)
+        tx = frame + bytes([chk])
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+        ser.write(tx)
+        print(f"    TX: {tx.hex().upper()}")
+        time.sleep(0.8)
+        rx = ser.read(ser.in_waiting or 255)
+        for _ in range(3):
+            time.sleep(0.2)
+            extra = ser.read(ser.in_waiting or 255)
+            if extra:
+                rx += extra
+            else:
+                break
+        if not rx:
+            print(f"    ⚠️ RX: TIMEOUT (Cmd=0x{cmd:02X})")
+            return None
+        print(f"    RX: {rx.hex().upper()}")
+        if (sum(rx[:-1]) & 0xFF) != rx[-1]:
+            print(f"    ⚠️ Checksum hatası (Cmd=0x{cmd:02X})")
+            return None
+        return rx
+
+    def u16_le(buf, i):
+        return buf[i] | (buf[i + 1] << 8)
+
+    def i16_le(buf, i):
+        v = u16_le(buf, i)
+        return v - 65536 if v > 32767 else v
+
+    try:
+        # -------- 0x27: Hücre sayısı --------
+        rx = bms_send(0x27)
+        series_count = None
+        if rx and len(rx) > 6:
+            d = rx[6:-1]
+            series_count = d[-1] if 1 <= d[-1] <= 24 else 4
+            print(f"    ✅ Cevap alındı (Hücre Sayısı: {series_count})")
+        else:
+            print("    ⚠️ Cevap yok (Cmd=0x27)")
+            print("    ⚠️ Hücre sayısı okunamadı, varsayılan 4 olarak alındı.")
+            series_count = 4
+        time.sleep(0.5)
+
+        # -------- 0x00: Gerçek zamanlı veri (dinamik pack konumu) --------
+        rx = bms_send(0x00)
+        if rx and len(rx) > 20:
+            # Protokolde payload: rx[6:-1], milat kodunda +1 offset kullanılıyor
+            d = rx[6:-1][1:]
+
+            # 1) Hücre voltajları
+            cells = [round(u16_le(d, i * 2) / 1000.0, 3) for i in range(series_count)]
+            for i, v in enumerate(cells, 1):
+                print(f"    ✅ Cevap alındı (Cell {i}: {v:.3f}V)")
+
+            # 2) Pack V/I için dinamik konum:
+            #    - uzun 0x00 dolgusu biter; ardından anlamlı blok başlar
+            #    - pack voltajı, hücre toplamına (×100) yakın u16_le değerdir
+            total_v = sum(cells)
+            v_guess = int(round(total_v * 100))           # 13.36V -> 1336
+            v_low, v_high = v_guess - 12, v_guess + 12    # ±12 tolerans
+
+            # "0x00 dolgu"yu atla (>=16 adet ardışık 0x00)
+            start = max(2 * series_count, 8)
+            zero_run = 0
+            base_start = start
+            for i in range(start, len(d)):
+                if d[i] == 0x00:
+                    zero_run += 1
+                else:
+                    if zero_run >= 16:
+                        base_start = i
+                        break
+                    zero_run = 0
+
+            # Hücre toplamına yakın değeri tara
+            pack_idx = None
+            for i in range(base_start, len(d) - 8):
+                val = u16_le(d, i)
+                if v_low <= val <= v_high:
+                    pack_idx = i
+                    break
+
+            if pack_idx is None:
+                # bulunamazsa hücre toplamına düş
+                vpack = round(total_v, 2)
+                ipack = 0.0
+                soc = 0
+                soh = 0
+                print(f"    ⚠️ Pack marker bulunamadı, toplamdan tahmin: {vpack:.2f}V")
+            else:
+                # 3) Pack & Current
+                vpack = round(u16_le(d, pack_idx) / 100.0, 2)
+                ipack = round(i16_le(d, pack_idx + 2) / 100.0, 2)
+
+                # 4) SOC / SOH — pack sonrası +6 / +7 tek bayt
+                cand_soc = d[pack_idx + 6] if (pack_idx + 6) < len(d) else 255
+                cand_soh = d[pack_idx + 7] if (pack_idx + 7) < len(d) else 255
+                soc = cand_soc if 0 <= cand_soc <= 100 else 0
+                soh = cand_soh if 0 <= cand_soh <= 100 else 0
+
+            print(f"    ✅ Cevap alındı (Pack Voltage: {vpack:.2f}V, Current: {ipack:.2f}A, SOC: {soc}%, SOH: {soh}%)")
+            modbus_data.update({
+                "bms_cells": cells,
+                "bms_voltage": vpack,
+                "bms_current": ipack,
+                "bms_soc": soc,
+                "bms_soh": soh
+            })
+        else:
+            print("    ⚠️ Cevap yok (Cmd=0x00)")
+        time.sleep(0.5)
+
+        # -------- 0x01: Limit/koruma parametreleri --------
+        rx = bms_send(0x01)
+        if rx and len(rx) >= 6 + 56 + 1:  # başlık (6) + payload (56) + checksum (1)
+            d = rx[6:6 + 56]  # 56 byte payload
+
+            # Hücre voltaj korumaları (mV) ve gecikmeler (ms)
+            cell_ovp_mv         = u16_le(d, 0)    # 3650 mV
+            cell_ovp_rel_mv     = u16_le(d, 2)    # 3500 mV
+            ovp_delay_ms        = u16_le(d, 4)    # 1000 ms
+            cell_uvp_mv         = u16_le(d, 6)    # 2700 mV
+            cell_uvp_rel_mv     = u16_le(d, 8)    # 2900 mV
+            uvp_delay_ms        = u16_le(d, 10)   # 1000 ms
+
+            # Sıcaklık eşikleri (°C)
+            t_hot_1_c           = u16_le(d, 12)   # 75 °C
+            t_hot_2_c           = u16_le(d, 14)   # 65 °C
+            t_hot_3_c           = u16_le(d, 16)   # 55 °C
+            t_hot_4_c           = u16_le(d, 18)   # 45 °C
+            t_limit_1           = u16_le(d, 20)   # 100
+            t_limit_2           = u16_le(d, 22)   # 80
+
+            # Negatif sıcaklıklar (işaretli, °C)
+            t_cold_1_c          = i16_le(d, 24)   # -40 °C
+            t_cold_2_c          = i16_le(d, 26)   # -30 °C
+            t_cold_3_c          = i16_le(d, 28)   # -20 °C
+
+            # Gecikme/ham değerler
+            delay_1             = u16_le(d, 30)   # 5
+            delay_2             = u16_le(d, 32)   # 30
+            delay_3_ms          = u16_le(d, 34)   # 1000 ms
+            delay_4             = u16_le(d, 36)   # 30
+            delay_5_ms          = u16_le(d, 38)   # 1000 ms
+
+            # Kalan ham eşik/nokta değerleri
+            raw_x1              = u16_le(d, 40)   # 70
+            raw_x2              = u16_le(d, 42)   # 1000
+            raw_x3              = u16_le(d, 44)   # 140
+            raw_x4              = u16_le(d, 46)   # 100
+            raw_x5              = u16_le(d, 48)   # 200
+            raw_x6              = u16_le(d, 50)   # 300
+            raw_x7              = u16_le(d, 52)   # 975
+            raw_x8              = u16_le(d, 54)   # 0
+
+            # Konsola detaylı döküm
+            print("    ✅ Cevap alındı (Koruma/Limit parametreleri)")
+            print(f"       OVP: {cell_ovp_mv} mV (release: {cell_ovp_rel_mv} mV, delay: {ovp_delay_ms} ms)")
+            print(f"       UVP: {cell_uvp_mv} mV (release: {cell_uvp_rel_mv} mV, delay: {uvp_delay_ms} ms)")
+            print(f"       Temp hot thresholds: {t_hot_1_c} / {t_hot_2_c} / {t_hot_3_c} / {t_hot_4_c} °C")
+            print(f"       Temp limits: {t_limit_1} / {t_limit_2}")
+            print(f"       Temp cold thresholds: {t_cold_1_c} / {t_cold_2_c} / {t_cold_3_c} °C")
+            print(f"       Delays: {delay_1}, {delay_2}, {delay_3_ms} ms, {delay_4}, {delay_5_ms} ms")
+            print(f"       Raw X: {raw_x1}, {raw_x2}, {raw_x3}, {raw_x4}, {raw_x5}, {raw_x6}, {raw_x7}, {raw_x8}")
+
+            # JSON'a yaz
+            modbus_data.update({
+                "bms_cell_ovp_mv": cell_ovp_mv,
+                "bms_cell_ovp_release_mv": cell_ovp_rel_mv,
+                "bms_ovp_delay_ms": ovp_delay_ms,
+                "bms_cell_uvp_mv": cell_uvp_mv,
+                "bms_cell_uvp_release_mv": cell_uvp_rel_mv,
+                "bms_uvp_delay_ms": uvp_delay_ms,
+
+                "bms_t_hot_1_c": t_hot_1_c,
+                "bms_t_hot_2_c": t_hot_2_c,
+                "bms_t_hot_3_c": t_hot_3_c,
+                "bms_t_hot_4_c": t_hot_4_c,
+                "bms_t_limit_1": t_limit_1,
+                "bms_t_limit_2": t_limit_2,
+
+                "bms_t_cold_1_c": t_cold_1_c,
+                "bms_t_cold_2_c": t_cold_2_c,
+                "bms_t_cold_3_c": t_cold_3_c,
+
+                "bms_delay_1": delay_1,
+                "bms_delay_2": delay_2,
+                "bms_delay_3_ms": delay_3_ms,
+                "bms_delay_4": delay_4,
+                "bms_delay_5_ms": delay_5_ms,
+
+                "bms_raw_x1": raw_x1,
+                "bms_raw_x2": raw_x2,
+                "bms_raw_x3": raw_x3,
+                "bms_raw_x4": raw_x4,
+                "bms_raw_x5": raw_x5,
+                "bms_raw_x6": raw_x6,
+                "bms_raw_x7": raw_x7,
+                "bms_raw_x8": raw_x8
+            })
+        else:
+            print("    ⚠️ Cevap yok (Cmd=0x01)")
+        time.sleep(0.5)
+
+        # -------- 0x02: Ürün bilgisi --------
+        rx = bms_send(0x02)
+        if rx and len(rx) > 10:
+            payload = bytes(rx[9:-1]).decode(errors="ignore").strip()
+            print(f"    ✅ Cevap alındı (Ürün: {payload})")
+            modbus_data["bms_product_info"] = payload
+        else:
+            print("    ⚠️ Cevap yok (Cmd=0x02)")
+        time.sleep(0.5)
+
+        # -------- 0x20: RTC --------
+        rx = bms_send(0x20)
+        if rx and len(rx) >= 14:
+            d = rx[6:-1]
+            year, month, day = d[0] + 2000, d[1], d[2]
+            hour, minute, second = d[3], d[4], d[5]
+            print(f"    ✅ Cevap alındı (RTC: {year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d})")
+            modbus_data["bms_rtc"] = f"{year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}"
+        else:
+            print("    ⚠️ Cevap yok (Cmd=0x20)")
+        time.sleep(0.5)
+
+        # -------- MOS durumları --------
+        for cmd, label in [(0x2D, "Deşarj"), (0x2E, "Şarj")]:
+            rx = bms_send(cmd)
+            if rx and len(rx) >= 8:
+                state = "ON" if rx[7] == 1 else "OFF"
+                print(f"    ✅ Cevap alındı ({label} MOS: {state})")
+                modbus_data[f"bms_{'dischg' if cmd == 0x2D else 'chg'}_mos"] = state
+            else:
+                print(f"    ⚠️ Cevap yok (Cmd=0x{cmd:02X})")
+            time.sleep(0.5)
+
+        modbus_data["bms_status"] = "OK"
+
+    except Exception as e:
+        print(f"    ❌ BMS okuma hatası: {e}")
+
+# ========================================
+# MPPT OKUMA (Slave 0x0A)
+# ========================================
+
+def read_mppt():
+    """MPPT (Lumiax) verilerini oku"""
+    print("  ☀️ MPPT okuma...")
     
     try:
-        interval = config_manager.get('interval', 10)
-        while True:
-            read_sensors(alarm_system=alarm_sys, mqtt_client=mqtt)
-            time.sleep(interval)
-    except KeyboardInterrupt:
-        logger.info("Reader stopped by user")
-        if mqtt:
-            mqtt.disconnect()
+        # Batarya Voltajı (Register 0x3046, FC 04)
+        tx = bytes([SLAVE_MPPT, 0x04, 0x30, 0x46, 0x00, 0x01])
+        tx = add_crc(tx)
+        rx = send_receive(tx)
+        
+        if rx and len(rx) >= 7 and check_crc(rx):
+            voltage_raw = (rx[3] << 8) | rx[4]
+            modbus_data['mppt_battery_voltage'] = voltage_raw / 100.0
+            print(f"    ✅ MPPT Bat Voltaj: {modbus_data['mppt_battery_voltage']:.2f}V")
+        else:
+            print(f"    ⚠️ MPPT voltaj okunamadı")
+        
+        time.sleep(0.1)
+        
+        # Batarya Akımı (Register 0x3047, FC 04)
+        tx = bytes([SLAVE_MPPT, 0x04, 0x30, 0x47, 0x00, 0x01])
+        tx = add_crc(tx)
+        rx = send_receive(tx)
+        
+        if rx and len(rx) >= 7 and check_crc(rx):
+            current_raw = (rx[3] << 8) | rx[4]
+            # İşaretli
+            if current_raw > 32767:
+                current_raw -= 65536
+            modbus_data['mppt_battery_current'] = current_raw / 100.0
+            print(f"    ✅ MPPT Bat Akım: {modbus_data['mppt_battery_current']:.2f}A")
+        else:
+            print(f"    ⚠️ MPPT akım okunamadı")
+        
+        time.sleep(0.1)
+        
+        # PV Voltajı (Register 0x304E, FC 04)
+        tx = bytes([SLAVE_MPPT, 0x04, 0x30, 0x4E, 0x00, 0x01])
+        tx = add_crc(tx)
+        rx = send_receive(tx)
+        
+        if rx and len(rx) >= 7 and check_crc(rx):
+            pv_voltage_raw = (rx[3] << 8) | rx[4]
+            modbus_data['mppt_pv_voltage'] = pv_voltage_raw / 100.0
+            print(f"    ✅ MPPT PV Voltaj: {modbus_data['mppt_pv_voltage']:.2f}V")
+        else:
+            print(f"    ⚠️ MPPT PV voltaj okunamadı")
+        
+        time.sleep(0.1)
+        
+        # PV Akımı (Register 0x304F, FC 04)
+        tx = bytes([SLAVE_MPPT, 0x04, 0x30, 0x4F, 0x00, 0x01])
+        tx = add_crc(tx)
+        rx = send_receive(tx)
+        
+        if rx and len(rx) >= 7 and check_crc(rx):
+            pv_current_raw = (rx[3] << 8) | rx[4]
+            modbus_data['mppt_pv_current'] = pv_current_raw / 100.0
+            print(f"    ✅ MPPT PV Akım: {modbus_data['mppt_pv_current']:.2f}A")
+        else:
+            print(f"    ⚠️ MPPT PV akım okunamadı")
+            
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        if mqtt:
-            mqtt.disconnect()
+        print(f"    ❌ MPPT okuma hatası: {e}")
+
+# ========================================
+# ÇEVRE SENSÖRÜ OKUMA (Slave 0x7B)
+# ========================================
+
+def read_env_sensor():
+    """Çevre sensörü verilerini oku (IEEE754 Float)"""
+    print("  🌡️ Çevre sensörü okuma...")
+    
+    try:
+        # CO2 (Register 0x0008, FC 03, 2 register = 4 byte IEEE754)
+        tx = bytes([SLAVE_ENV, 0x03, 0x00, 0x08, 0x00, 0x02])
+        tx = add_crc(tx)
+        rx =================
+# ANA OKUMA FONKSİYONU
+# ========================================
+
+def read_all_devices():
+    """Tüm cihazları oku"""
+    print(f"\n📡 Modbus okuma başlıyor... [{datetime.now().strftime('%H:%M:%S')}]")
+    
+    # BMS oku
+    read_bms()
+    time.sleep(0.2)
+    
+    # MPPT oku
+    read_mppt()
+    time.sleep(0.2)
+    
+    # Çevre sensörü oku
+    read_env_sensor()
+    time.sleep(0.2)
+    
+    # LDR oku
+    read_ldr()
+    
+    # Son güncelleme zamanı
+    modbus_data['last_update'] = datetime.now().isoformat()
+    
+    print("")
+
+# ========================================
+# VERİ KAYDETME
+# ========================================
+
+def save_data():
+    """Verileri JSON'a kaydet"""
+    try:
+        with open(MODBUS_DATA_FILE, 'w') as f:
+            json.dump(modbus_data, f, indent=2)
+        print(f"💾 Veri kaydedildi: {MODBUS_DATA_FILE}")
+    except Exception as e:
+        print(f"⚠️ Veri kaydetme hatası: {e}")
+
+# ========================================
+# ANA DÖNGÜ
+# ========================================
+
+def main():
+    """Ana program"""
+    print("=" * 60)
+    print("🚀 nuGateway Modbus Reader (RAW Serial)")
+    print("=" * 60)
+    print(f"Serial Port: {SERIAL_PORT}")
+    print(f"Baud Rate: {BAUDRATE}")
+    print(f"Okuma Periyodu: {READ_INTERVAL} saniye")
+    print("=" * 60)
+    print("")
+    
+    # Serial port aç
+    if not open_serial():
+        return
+    
+    print("🔄 Ana döngü başlıyor...")
+    print("   Ctrl+C ile durdurun\n")
+    
+    try:
+        while True:
+            # Tüm cihazları oku
+            read_all_devices()
+            
+            # Verileri kaydet
+            save_data()
+            
+            # Bekle
+            time.sleep(READ_INTERVAL)
+            
+    except KeyboardInterrupt:
+        print("\n\n⏹️  Modbus Reader durduruluyor...")
+    finally:
+        close_serial()
+        print("=" * 60)
+
+if __name__ == '__main__':
+    main()

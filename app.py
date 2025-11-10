@@ -1,317 +1,379 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
-from flask_socketio import SocketIO, emit
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from functools import wraps
+"""
+Nu Gateway - Flask Web Server
+Sadece web arayüzü ve API endpoint'leri
+Modbus okuma: modbus_reader.py tarafından yapılıyor
+"""
+
+from flask import Flask, render_template, jsonify, send_from_directory, request
 import json
 import os
-import socket
-import uuid
-import serial.tools.list_ports
-import logging
 from datetime import datetime
-from config import config_manager
-from logger import setup_logging
-from relay_control import relay_controller, manual_control, get_relay_states
-from alarm_system import AlarmSystem
 
-# Setup logging
-setup_logging(
-    log_level=config_manager.get('log_level', 'INFO'),
-    log_file=config_manager.get('log_file', 'nugateway.log')
-)
-logger = logging.getLogger(__name__)
-
-# Flask app initialization
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(24)
 
-# SocketIO for real-time updates
-socketio = SocketIO(app, cors_allowed_origins="*")
+# ========================================
+# VERI PAYLAŞIMI (modbus_reader.py ile)
+# ========================================
 
-# Rate limiting
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
-)
+# Modbus verilerini saklamak için (modbus_reader.py tarafından doldurulacak)
+MODBUS_DATA_FILE = 'modbus_data.json'
+modbus_data = {}
 
-# Initialize alarm system
-alarm_system = AlarmSystem(config_manager)
-
-# Authentication decorator
-def requires_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not config_manager.get('enable_auth', False):
-            return f(*args, **kwargs)
-        
-        # Check for API token in header
-        token = request.headers.get('X-API-Token')
-        if token and token == config_manager.get('api_token', ''):
-            return f(*args, **kwargs)
-        
-        # Check for session
-        if 'authenticated' in session and session['authenticated']:
-            return f(*args, **kwargs)
-        
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    return decorated
-
-# === Routes ===
-
-@app.route("/")
-def index():
-    return render_template("dashboard.html")
-
-@app.route("/dashboard")
-def dashboard():
-    return render_template("dashboard.html")
-
-@app.route("/devices")
-def devices():
-    return render_template("devices.html")
-
-@app.route("/settings")
-def settings():
-    return render_template("settings.html")
-
-@app.route("/alarms")
-def alarms_page():
-    return render_template("alarms.html")
-
-# === API Endpoints ===
-
-@app.route('/api/sensors')
-@limiter.limit("60 per minute")
-@requires_auth
-def api_sensors():
-    """Get current sensor data"""
+def load_modbus_data():
+    """modbus_data.json dosyasından veriyi yükle"""
+    global modbus_data
     try:
-        with open('sensors.json') as f:
-            data = json.load(f)
-            data['timestamp'] = datetime.now().isoformat()
-            return jsonify(data)
-    except FileNotFoundError:
-        return jsonify({"error": "No sensor data available"}), 404
+        if os.path.exists(MODBUS_DATA_FILE):
+            with open(MODBUS_DATA_FILE, 'r') as f:
+                modbus_data = json.load(f)
+        return modbus_data
     except Exception as e:
-        logger.error(f"Error reading sensors: {e}")
-        return jsonify({"error": str(e)}), 500
+        print(f"⚠️ Modbus data yüklenemedi: {e}")
+        return {}
 
-@app.route('/api/relays')
-@requires_auth
-def api_relays():
-    """Get current relay states"""
-    return jsonify(get_relay_states())
+# ========================================
+# STATIC DOSYALAR ve PARTIALS
+# ========================================
 
-@app.route('/api/relay/<name>', methods=['POST'])
-@requires_auth
-def api_relay_control(name):
-    """Control individual relay"""
+@app.route('/statics/<path:filename>')
+def statics(filename):
+    """Static dosyalar (CSS, JS, vs.)"""
+    return send_from_directory('statics', filename)
+
+@app.route('/templates/partials/<path:filename>')
+def partials(filename):
+    """Partial template'ler (footer.html vs.)"""
+    return send_from_directory('templates/partials', filename)
+
+# ========================================
+# WEB SAYFALARI
+# ========================================
+
+@app.route('/')
+@app.route('/dashboard')
+def dashboard():
+    """Ana sayfa - Dashboard"""
+    return render_template('dashboard.html')
+
+@app.route('/devices')
+def devices():
+    """Cihazlar listesi"""
+    return render_template('devices.html')
+
+@app.route('/mppt_control')
+def mppt_control():
+    """MPPT Kontrol sayfası"""
+    return render_template('mppt_control.html')
+
+@app.route('/relay_control')
+def relay_control():
+    """Röle Kontrol sayfası"""
+    return render_template('relay_control.html')
+
+@app.route('/automation')
+def automation():
+    """Alarm & Otomasyon sayfası"""
+    return render_template('automation.html')
+
+@app.route('/settings')
+def settings():
+    """Ayarlar sayfası"""
+    return render_template('settings.html')
+
+# ========================================
+# API ENDPOINT'LERİ - VERI OKUMA
+# ========================================
+
+@app.route('/api/modbus/data')
+def get_modbus_data():
+    """Tüm Modbus verilerini döndür"""
+    data = load_modbus_data()
+    return jsonify(data)
+
+@app.route('/api/modbus/ldr')
+def get_ldr_data():
+    """LDR sensör verisi"""
+    data = load_modbus_data()
+    return jsonify({
+        'light_level': data.get('light_level', None)
+    })
+
+@app.route('/api/modbus/env')
+def get_env_data():
+    """Çevre sensörü verisi"""
+    data = load_modbus_data()
+    return jsonify({
+        'temperature': data.get('temperature', None),
+        'humidity': data.get('humidity', None),
+        'co2': data.get('co2', None),
+        'pm25': data.get('pm25', None),
+        'pm10': data.get('pm10', None)
+    })
+
+@app.route('/api/modbus/pir')
+def get_pir_data():
+    """PIR sensör verisi"""
+    data = load_modbus_data()
+    return jsonify({
+        'motion': data.get('motion', None)
+    })
+
+@app.route('/api/modbus/mppt')
+def get_mppt_data():
+    """MPPT verisi"""
+    data = load_modbus_data()
+    return jsonify({
+        'pv_voltage': data.get('pv_voltage', None),
+        'pv_current': data.get('pv_current', None),
+        'pv_power': data.get('pv_power', None)
+    })
+
+@app.route('/api/modbus/bms')
+def get_bms_data():
+    """BMS (Batarya) verisi"""
+    data = load_modbus_data()
+    return jsonify({
+        'battery_voltage': data.get('battery_voltage', None),
+        'battery_soc': data.get('battery_soc', None),
+        'battery_temp': data.get('battery_temp', None)
+    })
+
+# ========================================
+# API ENDPOINT'LERİ - KONTROL KOMUTLARI
+# ========================================
+
+COMMAND_FILE = 'modbus_commands.json'
+
+def send_command(command_type, device, params):
+    """
+    modbus_reader.py'ye komut gönder
+    Komut dosyaya yazılır, modbus_reader.py okur ve uygular
+    """
     try:
-        data = request.get_json()
-        state = data.get('state', False)
+        command = {
+            'timestamp': datetime.now().isoformat(),
+            'type': command_type,
+            'device': device,
+            'params': params,
+            'status': 'pending'
+        }
         
-        if manual_control(name, state):
-            # Emit update via WebSocket
-            socketio.emit('relay_update', {
-                'name': name,
+        # Mevcut komutları oku
+        commands = []
+        if os.path.exists(COMMAND_FILE):
+            with open(COMMAND_FILE, 'r') as f:
+                commands = json.load(f)
+        
+        # Yeni komutu ekle
+        commands.append(command)
+        
+        # Dosyaya yaz
+        with open(COMMAND_FILE, 'w') as f:
+            json.dump(commands, f, indent=2)
+        
+        return True
+    except Exception as e:
+        print(f"⚠️ Komut gönderilemedi: {e}")
+        return False
+
+@app.route('/api/relay/<int:relay_id>/<int:state>')
+def set_relay(relay_id, state):
+    """
+    Röle kontrolü
+    relay_id: 1-4
+    state: 0 (kapat) veya 1 (aç)
+    """
+    try:
+        success = send_command(
+            command_type='write_coil',
+            device='relay',
+            params={
+                'relay_id': relay_id,
                 'state': state
+            }
+        )
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'relay_id': relay_id,
+                'state': 'ON' if state else 'OFF',
+                'message': f'Röle {relay_id} komutu gönderildi'
             })
-            return jsonify({"status": "ok", "relay": name, "state": state})
         else:
-            return jsonify({"error": "Failed to control relay"}), 500
+            return jsonify({
+                'success': False,
+                'error': 'Komut gönderilemedi'
+            }), 500
             
     except Exception as e:
-        logger.error(f"Relay control error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
-@app.route('/api/alarms/active')
-@requires_auth
-def api_active_alarms():
-    """Get active alarms"""
-    return jsonify(alarm_system.get_active_alarms())
+@app.route('/api/mppt/dimming/<int:value>')
+def set_mppt_dimming(value):
+    """
+    MPPT Dimming kontrolü
+    value: 0-100 (%)
+    """
+    try:
+        if not (0 <= value <= 100):
+            return jsonify({
+                'success': False,
+                'error': 'Değer 0-100 arasında olmalı'
+            }), 400
+        
+        success = send_command(
+            command_type='write_register',
+            device='mppt',
+            params={
+                'register': 10,  # Dimming register adresi
+                'value': value
+            }
+        )
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'dimming': value,
+                'message': 'Dimming komutu gönderildi'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Komut gönderilemedi'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
-@app.route('/api/alarms/history')
-@requires_auth
-def api_alarm_history():
-    """Get alarm history"""
-    limit = request.args.get('limit', 50, type=int)
-    return jsonify(alarm_system.get_alarm_history(limit))
-
-@app.route('/api/alarms/clear', methods=['POST'])
-@requires_auth
-def api_clear_alarms():
-    """Clear alarms"""
-    data = request.get_json()
-    sensor = data.get('sensor')
-    alarm_system.clear_alarms(sensor)
-    return jsonify({"status": "ok"})
-
-@app.route("/api/settings", methods=['GET'])
-@requires_auth
-def api_get_settings():
-    """Get current settings"""
-    return jsonify(config_manager.to_dict())
-
-@app.route("/api/settings", methods=['POST'])
-@requires_auth
-def api_save_settings():
-    """Save settings"""
+@app.route('/api/mppt/rtc', methods=['POST'])
+def set_mppt_rtc():
+    """
+    MPPT RTC saat ayarla
+    POST JSON: {"date": "2025-10-23", "time": "16:30:00"}
+    """
     try:
         data = request.get_json()
+        date = data.get('date')
+        time = data.get('time')
         
-        # Update config
-        for key, value in data.items():
-            config_manager.set(key, value)
+        if not date or not time:
+            return jsonify({
+                'success': False,
+                'error': 'Tarih ve saat gerekli'
+            }), 400
         
-        return jsonify({"status": "ok"})
+        success = send_command(
+            command_type='write_rtc',
+            device='mppt',
+            params={
+                'date': date,
+                'time': time
+            }
+        )
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'RTC ayar komutu gönderildi'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Komut gönderilemedi'
+            }), 500
+            
     except Exception as e:
-        logger.error(f"Settings save error: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/network-info")
-def api_network_info():
-    """Get network information"""
-    try:
-        hostname = socket.gethostname()
-        ip = socket.gethostbyname(hostname)
-        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff)
-                        for ele in range(0, 2*6, 8)][::-1])
         return jsonify({
-            "hostname": hostname,
-            "ip": ip,
-            "mac": mac
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/serial/status')
+def get_serial_status():
+    """
+    Serial port durumunu kontrol et
+    modbus_reader.py'nin durumunu kontrol eder
+    """
+    try:
+        data = load_modbus_data()
+        last_update = data.get('last_update', None)
+        
+        if last_update:
+            # Son güncelleme zamanını kontrol et
+            last_time = datetime.fromisoformat(last_update)
+            now = datetime.now()
+            diff = (now - last_time).total_seconds()
+            
+            # 30 saniyeden eski ise offline
+            if diff < 30:
+                return jsonify({'online': True, 'last_update': last_update})
+            else:
+                return jsonify({'online': False, 'last_update': last_update})
+        else:
+            return jsonify({'online': False})
+            
+    except Exception as e:
+        return jsonify({'online': False, 'error': str(e)})
+
+# ========================================
+# SİSTEM BİLGİLERİ
+# ========================================
+
+@app.route('/api/system/info')
+def get_system_info():
+    """Sistem bilgileri"""
+    import platform
+    
+    try:
+        return jsonify({
+            'hostname': platform.node(),
+            'system': platform.system(),
+            'release': platform.release(),
+            'machine': platform.machine()
         })
     except Exception as e:
-        logger.error(f"Network info error: {e}")
-        return jsonify({
-            "hostname": "unknown",
-            "ip": "0.0.0.0",
-            "mac": "00:00:00:00:00:00"
-        })
+        return jsonify({'error': str(e)}), 500
 
-@app.route("/api/serial-ports")
-def api_serial_ports():
-    """List available serial ports"""
-    try:
-        ports = [port.device for port in serial.tools.list_ports.comports()]
-        return jsonify({"ports": ports})
-    except Exception as e:
-        logger.error(f"Serial ports error: {e}")
-        return jsonify({"ports": []})
-
-@app.route("/api/stats")
-@requires_auth
-def api_stats():
-    """Get system statistics"""
-    try:
-        # Read sensor data history from log file
-        stats = {
-            "uptime": "N/A",
-            "total_readings": 0,
-            "active_alarms": len(alarm_system.get_active_alarms()),
-            "mqtt_connected": False,  # TODO: Get from MQTT client
-            "last_update": datetime.now().isoformat()
-        }
-        return jsonify(stats)
-    except Exception as e:
-        logger.error(f"Stats error: {e}")
-        return jsonify({"error": str(e)}), 500
-
-# === Authentication ===
-
-@app.route("/api/login", methods=['POST'])
-@limiter.limit("5 per minute")
-def api_login():
-    """Login endpoint"""
-    if not config_manager.get('enable_auth', False):
-        return jsonify({"error": "Authentication not enabled"}), 400
-    
-    data = request.get_json()
-    token = data.get('token', '')
-    
-    if token == config_manager.get('api_token', ''):
-        session['authenticated'] = True
-        return jsonify({"status": "ok", "message": "Authenticated"})
-    else:
-        return jsonify({"error": "Invalid token"}), 401
-
-@app.route("/api/logout", methods=['POST'])
-def api_logout():
-    """Logout endpoint"""
-    session.pop('authenticated', None)
-    return jsonify({"status": "ok", "message": "Logged out"})
-
-# === WebSocket Events ===
-
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection"""
-    logger.info(f"Client connected: {request.sid}")
-    emit('connected', {'message': 'Connected to nuGateway'})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection"""
-    logger.info(f"Client disconnected: {request.sid}")
-
-@socketio.on('request_update')
-def handle_update_request():
-    """Handle real-time data request"""
-    try:
-        with open('sensors.json') as f:
-            data = json.load(f)
-            data['timestamp'] = datetime.now().isoformat()
-            emit('sensor_update', data)
-    except Exception as e:
-        logger.error(f"Update request error: {e}")
-
-# Background task to broadcast sensor updates
-def background_sensor_broadcast():
-    """Broadcast sensor data to all connected clients"""
-    import time
-    while True:
-        try:
-            socketio.sleep(5)  # Update every 5 seconds
-            with open('sensors.json') as f:
-                data = json.load(f)
-                data['timestamp'] = datetime.now().isoformat()
-                socketio.emit('sensor_update', data, broadcast=True)
-        except Exception as e:
-            logger.error(f"Broadcast error: {e}")
-            socketio.sleep(5)
-
-# === Error Handlers ===
+# ========================================
+# HATA YÖNETİMİ
+# ========================================
 
 @app.errorhandler(404)
-def not_found(error):
-    return jsonify({"error": "Not found"}), 404
+def not_found(e):
+    """404 hatası"""
+    return jsonify({'error': 'Not found'}), 404
 
 @app.errorhandler(500)
-def internal_error(error):
-    logger.error(f"Internal error: {error}")
-    return jsonify({"error": "Internal server error"}), 500
+def internal_error(e):
+    """500 hatası"""
+    return jsonify({'error': 'Internal server error'}), 500
 
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    return jsonify({"error": "Rate limit exceeded"}), 429
+# ========================================
+# UYGULAMA BAŞLATMA
+# ========================================
 
-# === Main ===
-
-if __name__ == "__main__":
-    logger.info("🚀 nuGateway Flask app starting...")
-    logger.info(f"Authentication: {'Enabled' if config_manager.get('enable_auth', False) else 'Disabled'}")
+if __name__ == '__main__':
+    print("=" * 60)
+    print("🚀 nuGateway Flask Web Server")
+    print("=" * 60)
+    print("📡 Modbus Reader: modbus_reader.py (ayrı çalışmalı)")
+    print("🌐 Web Interface: http://0.0.0.0:5000")
+    print("=" * 60)
     
-    # Start background broadcast thread
-    socketio.start_background_task(background_sensor_broadcast)
+    # İlk veri yüklemesi
+    load_modbus_data()
     
-    # Run app
-    socketio.run(
-        app,
+    # Flask'ı başlat
+    app.run(
         debug=True,
-        host="0.0.0.0",
+        host='0.0.0.0',
         port=5000,
-        allow_unsafe_werkzeug=True
+        threaded=True
     )

@@ -1,130 +1,260 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>nuGateway | Cihazlar</title>
-  <link rel="stylesheet" href="/static/css/styles.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    body {
-      background-color: #f1f5f9;
-    }
-    .device-container {
-      max-width: 1000px;
-      margin: 2rem auto;
-      background: #ffffff;
-      padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    .device-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    .device-table th, .device-table td {
-      padding: 1rem;
-      text-align: left;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .device-table th {
-      background-color: #f8fafc;
-      font-weight: 600;
-      color: #0f172a;
-    }
-    .device-table tr:hover {
-      background-color: #f1f5f9;
-    }
-    .status-ok {
-      color: #16a34a;
-      font-weight: 500;
-    }
-    .status-error {
-      color: #dc2626;
-      font-weight: 500;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nu Gateway - Cihazlar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #003366;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+        }
+
+        .logo {
+            padding: 20px;
+            background: #002244;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 30px;
+            height: 30px;
+            background: #4A90E2;
+            border-radius: 5px;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 20px 0;
+        }
+
+        .nav-item {
+            padding: 15px 25px;
+            color: #ccc;
+            text-decoration: none;
+            display: block;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: #004477;
+            color: white;
+        }
+
+        .nav-item.active {
+            background: #0066cc;
+            color: white;
+            border-left: 4px solid #4A90E2;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #003366;
+            font-size: 24px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #4A90E2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .content-area {
+            flex: 1;
+            padding: 30px;
+        }
+
+        .devices-container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .devices-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .devices-table thead {
+            background: #f5f5f5;
+        }
+
+        .devices-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .devices-table td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .devices-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <img src="/static/logo.png" alt="Nu Teknoloji" class="sidebar-logo" />
-        <h2>Nu Gateway</h2>
-      </div>
-      <nav class="nav">
-        <ul>
-          <li><a href="/dashboard" class="nav-link">Dashboard</a></li>
-          <li><a href="/devices" class="nav-link active">Cihazlar</a></li>
-          <li><a href="/settings" class="nav-link">Ayarlar</a></li>
-        </ul>
-      </nav>
-    </aside>
-
-    <div class="main">
-      <header class="main-header">
-        <h1>Bağlı Cihazlar</h1>
-        <div class="user-info">
-          <span>Cafer DOGANAY</span>
-          <img src="/static/user-icon.png" class="user-avatar" />
+    <div class="sidebar">
+        <div class="logo">
+            <div class="logo-icon"></div>
+            <div class="logo-text">Nu Gateway</div>
         </div>
-      </header>
-
-      <main class="device-container">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th>Cihaz Adı</th>
-              <th>Slave ID</th>
-              <th>Protokol</th>
-              <th>Durum</th>
-              <th>Açıklama</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>LDR Sensör</td>
-              <td>1</td>
-              <td>Modbus RTU</td>
-              <td class="status-ok">Bağlı</td>
-              <td>Aydınlık seviyesi ölçümü</td>
-            </tr>
-            <tr>
-              <td>Çevre Sensörü</td>
-              <td>123</td>
-              <td>Modbus RTU</td>
-              <td class="status-ok">Bağlı</td>
-              <td>Sıcaklık, nem, CO₂, PM2.5/PM10 ölçümü</td>
-            </tr>
-            <tr>
-              <td>PIR Sensör</td>
-              <td>2</td>
-              <td>Modbus RTU</td>
-              <td class="status-ok">Bağlı</td>
-              <td>Hareket algılama</td>
-            </tr>
-            <tr>
-              <td>MPPT Solar Şarj</td>
-              <td>3</td>
-              <td>Modbus RTU</td>
-              <td class="status-ok">Bağlı</td>
-              <td>PV voltaj, akım, güç</td>
-            </tr>
-            <tr>
-              <td>BMS (Batarya Yönetimi)</td>
-              <td>4</td>
-              <td>Modbus RTU</td>
-              <td class="status-ok">Bağlı</td>
-              <td>Voltaj, SOC, sıcaklık</td>
-            </tr>
-          </tbody>
-        </table>
-      </main>
-
-      <footer class="footer">
-        <p>&copy; 2024 Nu Teknoloji A.Ş. | Tüm hakları saklıdır.</p>
-      </footer>
+        <nav class="nav-menu">
+            <a href="/dashboard" class="nav-item">Dashboard</a>
+            <a href="/devices" class="nav-item active">Cihazlar</a>
+            <a href="/mppt_control" class="nav-item">MPPT Kontrol</a>
+            <a href="/relay_control" class="nav-item">Röle Kontrol</a>
+            <a href="/automation" class="nav-item">Alarm & Otomasyon</a>
+            <a href="/settings" class="nav-item">Ayarlar</a>
+        </nav>
     </div>
-  </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>Bayağı Cihazlar</h1>
+            <div class="user-info">
+                <span>Cafer DOĞANAY</span>
+                <div class="user-avatar">CD</div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div class="devices-container">
+                <table class="devices-table">
+                    <thead>
+                        <tr>
+                            <th>Cihaz Adı</th>
+                            <th>Slave ID</th>
+                            <th>Protokol</th>
+                            <th>Durum</th>
+                            <th>Açıklama</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>LDR Sensör</td>
+                            <td>1</td>
+                            <td>Modbus RTU</td>
+                            <td><span class="status-badge status-online">Bağlı</span></td>
+                            <td>Aydınlatma seviyesi ölçümü</td>
+                        </tr>
+                        <tr>
+                            <td>Çevre Sensörü</td>
+                            <td>123</td>
+                            <td>Modbus RTU</td>
+                            <td><span class="status-badge status-online">Bağlı</span></td>
+                            <td>Sıcaklık, nem, CO₂, PM2.5/PM10 ölçümü</td>
+                        </tr>
+                        <tr>
+                            <td>PIR Sensör</td>
+                            <td>2</td>
+                            <td>Modbus RTU</td>
+                            <td><span class="status-badge status-online">Bağlı</span></td>
+                            <td>Hareket algılama</td>
+                        </tr>
+                        <tr>
+                            <td>MPPT Solar Şarj</td>
+                            <td>3</td>
+                            <td>Modbus RTU</td>
+                            <td><span class="status-badge status-online">Bağlı</span></td>
+                            <td>PV voltaj, akım, güç</td>
+                        </tr>
+                        <tr>
+                            <td>BMS (Batarya Yönetimi)</td>
+                            <td>4</td>
+                            <td>Modbus RTU</td>
+                            <td><span class="status-badge status-online">Bağlı</span></td>
+                            <td>Voltaj, SOC, sıcaklık</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Footer buraya yüklenecek -->
+        <div id="footer-container"></div>
+    </div>
+
+    <!-- Footer otomatik yükleyici - Flask static klasöründen -->
+    <script src="/statics/footer-loader.js"></script>
 </body>
 </html>
