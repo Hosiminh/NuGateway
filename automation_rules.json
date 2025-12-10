@@ -1,0 +1,70 @@
+{
+  "enabled": true,
+  "rules": [
+    {
+      "id": 1,
+      "name": "Temperature Fan Control",
+      "sensor": "env_temperature",
+      "operator": ">",
+      "value": 30.0,
+      "action_relay": "fan",
+      "action_state": true,
+      "enabled": true,
+      "cooldown": 300,
+      "last_trigger": 0,
+      "trigger_count": 0
+    },
+    {
+      "id": 2,
+      "name": "Dark Light Control",
+      "sensor": "ldr_lux",
+      "operator": "<",
+      "value": 50.0,
+      "action_relay": "led_light",
+      "action_state": true,
+      "enabled": true,
+      "cooldown": 180,
+      "last_trigger": 0,
+      "trigger_count": 0
+    },
+    {
+      "id": 3,
+      "name": "Low Battery Protection",
+      "sensor": "mppt_battery_soc",
+      "operator": "<",
+      "value": 20.0,
+      "action_relay": "load3",
+      "action_state": false,
+      "enabled": true,
+      "cooldown": 600,
+      "last_trigger": 0,
+      "trigger_count": 0
+    },
+    {
+      "id": 4,
+      "name": "High Temperature Alert",
+      "sensor": "env_temperature",
+      "operator": ">",
+      "value": 35.0,
+      "action_relay": "heater",
+      "action_state": false,
+      "enabled": true,
+      "cooldown": 300,
+      "last_trigger": 0,
+      "trigger_count": 0
+    },
+    {
+      "id": 5,
+      "name": "High CO2 Ventilation",
+      "sensor": "env_co2",
+      "operator": ">",
+      "value": 1000.0,
+      "action_relay": "fan",
+      "action_state": true,
+      "enabled": true,
+      "cooldown": 300,
+      "last_trigger": 0,
+      "trigger_count": 0
+    }
+  ]
+}

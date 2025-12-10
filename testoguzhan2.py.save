@@ -1,0 +1,111 @@
+import serial
+import time
+import binascii
+
+# ================================
+#   CRC16 MODBUS Hesaplama
+# ================================
+def crc16_modbus(data: bytes):
+    crc = 0xFFFF
+    for pos in data:
+        crc ^= pos
+        for _ in range(8):
+            if (crc & 1):
+                crc >>= 1
+                crc ^= 0xA001
+            else:
+                crc >>= 1
+    return crc.to_bytes(2, byteorder='little')
+
+
+# ================================
+#   Frame Gönder / Cevap Al
+# ================================
+def modbus_send(ser, hex_string, wait=3.0):
+    # TX bytes
+    frame = bytes.fromhex(hex_string)
+
+    # CRC'yi hesapla ve frame'e ekle
+    crc = crc16_modbus(frame)
+    frame_with_crc = frame + crc
+
+    print(f"[TX] {hex_string.upper()} | [CRC] {crc.hex().upper()}")
+
+    # Buffer temizliği
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
+    time.sleep(0.05)
+
+    ser.write(frame_with_crc)
+    ser.flush()
+
+    time.sleep(wait)  # Bekleme süresi
+
+    resp = ser.read_all()
+    if resp:
+        print(f"[RX] {binascii.hexlify(resp).decode().upper()}")
+        return resp
+    else:
+        print("[RX] (no response)")
+        return b''
+
+
+# ================================
+#   Genel Sorgu ve Cevap Debug
+# ================================
+def send_custom_query(ser, custom_query):
+    """
+    Bu fonksiyon, istediğiniz uzunlukta bir sorgu alır ve doğru CRC ile birlikte gönderir.
+    Gelen cevabı debuglar.
+    """
+    # Query byte'larını ve CRC'yi hesapla
+    print(f"\n[TX] Sorgu Gönderiliyor: {custom_query}")
+    
+    # Sorguyu ve CRC'yi hesaplayıp gönderelim
+    modbus_send(ser, custom_query, wait=3.0)  # Bekleme süresi 3 saniye
+
+
+# ================================
+#   MAIN - Genel Sorgu Testi
+# ================================
+def main():
+    ser = serial.Serial(
+        port="/dev/ttyUSB0",  # Portu doğru şekilde ayarlayın
+        baudrate=9600,
+        bytesize=8,
+        parity='N',
+        stopbits=1,
+        timeout=1.0
+    )
+
+    print("\n===== GENEL SORGULARIN TESTİ =====\n")
+
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 32 00 01 02 00 00 B9 20"
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 36 00 01 02 00 00 B8 A4"
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 3A 00 01 02 00 00 B8 68"
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 3E 00 01 02 00 00 B9 EC"
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 42 00 01 02 00 00 B2 10"
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 46 00 01 02 00 00 B3 94"
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 4A 00 01 02 00 00 B3 58"
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 4E 00 01 02 00 00 B2 DC"
+
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 52 00 01 02 00 00 B0 80"
+
+    # 11 Byte'lık Sorgu Örneği
+    query_11_bytes = "7B 10 00 56 00 01 02 00 00 B1 04"
+
+
+    print("\n===== SORGULAR TEST EDİLDİ =====\n")
+
+
+if __name__ == "__main__":
+    main()

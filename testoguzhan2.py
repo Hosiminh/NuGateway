@@ -1,0 +1,32 @@
+import serial
+import time
+
+def crc16(data_hex):
+    data = bytes.fromhex(data_hex.replace(" ", ""))
+    crc = 0xFFFF
+    for pos in data:
+        crc ^= pos
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0xA001 if (crc & 1) else crc >> 1
+    return f"{crc & 0xFF:02X} {(crc>>8)&0xFF:02X}"
+
+def send(ser, payload_hex, label=""):
+    frame = payload_hex + " " + crc16(payload_hex)
+    print(f"[TX] {frame}")
+    ser.write(bytes.fromhex(frame))
+    time.sleep(0.5)
+    rx = ser.read(100)
+    print(f"[RX] {rx.hex().upper()}\n")
+
+ser = serial.Serial("/dev/ttyUSB0",9600,timeout=1)
+
+print("\n===== GAS1 LOW (0x0032) = 0 =====\n")
+
+write_cmd = "7B 10 00 58 00 02 04 47 C3 50 00"
+read_cmd  = "7B 03 00 58 00 02"
+
+send(ser, write_cmd, "WRITE")
+time.sleep(0.5)
+send(ser, read_cmd, "READ")
+
+print("===== DONE =====")

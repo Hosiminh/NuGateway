@@ -1,0 +1,104 @@
+import serial
+import time
+import binascii
+
+# --- Port Ayarı ---
+ser = serial.Serial(
+    port="/dev/ttyUSB0",
+    baudrate=9600,
+    parity=serial.PARITY_NONE,
+    stopbits=1,
+    bytesize=8,
+    timeout=0.3
+)
+
+def flush_buffers():
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
+    time.sleep(0.05)
+
+def send_frame(label, frame_hex):
+    frame = bytes.fromhex(frame_hex)
+
+    print("\n-----------------------------")
+    print(f"[WRITE] {label}")
+    print(f"[TX] {frame_hex.upper()}")
+
+    flush_buffers()
+    ser.write(frame)
+    ser.flush()
+
+    # Cihazın cevap verebilmesi için gecikme (ÖNEMLİ!)
+    time.sleep(0.15)
+
+    resp = ser.read(64)
+    if len(resp) == 0:
+        print("[RX] (no response - silent write)")
+    else:
+        print("[RX]", binascii.hexlify(resp).decode().upper())
+
+    return resp
+
+
+def read_register(label, frame_hex):
+    frame = bytes.fromhex(frame_hex)
+
+    print(f"[READ] {label}")
+    print(f"[TX] {frame_hex.upper()}")
+
+    flush_buffers()
+    ser.write(frame)
+    ser.flush()
+
+    time.sleep(0.20)
+    resp = ser.read(64)
+
+    if len(resp) == 0:
+        print("[RX] (no response)")
+    else:
+        print("[RX]", binascii.hexlify(resp).decode().upper())
+
+    return resp
+
+
+# ===========================================================
+#  T Ü M   H I G H   A L A R M L A R I   O F F   Y A P
+#  SORGULARA DOKUNMUYORUM — SENİN FRAME’LERİN AYNEN
+# ===========================================================
+
+high_alarm_regs = {
+    "0x0034": "7B 10 00 34 00 02 04 FF FF FF FF 7B C5",
+    "0x0038": "7B 10 00 38 00 02 04 FF FF FF FF 7B 90",
+    "0x003C": "7B 10 00 3C 00 02 04 FF FF FF FF 7A 63",
+    "0x0040": "7B 10 00 40 00 02 04 FF FF FF FF 7D 12",
+    "0x0044": "7B 10 00 44 00 02 04 FF FF FF FF 7C E1",
+    "0x0048": "7B 10 00 48 00 02 04 FF FF FF FF 7C B4",
+    "0x004C": "7B 10 00 4C 00 02 04 FF FF FF FF 7D 47",
+    "0x0050": "7B 10 00 50 00 02 04 FF FF FF FF 7C 1E",
+    "0x0054": "7B 10 00 54 00 02 04 FF FF FF FF 7D ED",
+    "0x0058": "7B 10 00 58 00 02 04 FF FF FF FF 7D B8",
+}
+
+# --- READ Frame'leri (AYNEN KALACAK) ---
+read_frames = {
+    "0x0034": "7B 03 00 34 00 02 8E 5F",
+    "0x0038": "7B 03 00 38 00 02 8F 8F",
+    "0x003C": "7B 03 00 3C 00 02 8F 41",
+    "0x0040": "7B 03 00 40 00 02 8C 01",
+    "0x0044": "7B 03 00 44 00 02 8D C1",
+    "0x0048": "7B 03 00 48 00 02 8D 15",
+    "0x004C": "7B 03 00 4C 00 02 8C D5",
+    "0x0050": "7B 03 00 50 00 02 8C C2",
+    "0x0054": "7B 03 00 54 00 02 8D 02",
+    "0x0058": "7B 03 00 58 00 02 8D 56",
+}
+
+print("\n===== HIGH ALARMLAR OFF EDİLİYOR =====\n")
+
+for reg, frame in high_alarm_regs.items():
+    send_frame(f"HIGH Alarm OFF → Reg: {reg}", frame)
+    time.sleep(0.20)
+    read_register(f"Reg {reg}", read_frames[reg])
+    time.sleep(0.25)
+
+print("\n===== TÜM HIGH ALARMLAR OFF YAPILDI =====\n")

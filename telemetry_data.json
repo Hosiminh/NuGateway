@@ -1,0 +1,54 @@
+{
+  "Asset": {
+    "schema_version": "1.0",
+    "device_serial": "NU-GW-D83ADDE4A3E0",
+    "manufacturer_id": "NuTech",
+    "firmware_version": "1.0.0",
+    "location_id": "Karadag_Ofis_Bank_2"
+  },
+  "BMS": {
+    "cell_voltages": [
+      2.778,
+      2.833,
+      2.791,
+      2.759
+    ],
+    "pack_voltage_V": 11.16,
+    "current_A": -5.27,
+    "soc_pct": 0,
+    "soh_pct": 0,
+    "temperature_C": 0.0,
+    "charge_mos": "ON",
+    "discharge_mos": "ON"
+  },
+  "MPPT": {
+    "battery_voltage_V": 10.91,
+    "battery_current_A": 0.45,
+    "pv_voltage_V": 16.9,
+    "pv_current_A": 0.31,
+    "battery_power_W": 4.9095,
+    "pv_power_W": 5.239
+  },
+  "Sensors": {
+    "ENV": {
+      "co2_ppm": 476.0,
+      "temperature_C": 16.7,
+      "humidity_pct": 81.3
+    },
+    "LDR": {
+      "ambient_light_lux": 3277
+    },
+    "PIR": {
+      "motion_detected": false
+    }
+  },
+  "Relays": {
+    "load1": false,
+    "load2": false,
+    "load3": false
+  },
+  "Timestamp": {
+    "gateway": "2025-11-18T11:38:27.395731Z",
+    "reading": "2025-11-18T14:38:27.395784"
+  }
+}
